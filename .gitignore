@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+vidgo-video-prototype/node_modules/
+
+# Build and render output
+out/
+vidgo-video-prototype/out/
+
+# Generated or uploaded local assets
+vidgo-video-prototype/public/uploads/
+vidgo-video-prototype/tmp/
+
+# Logs
+*.log
+*.err
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env files
+.env
+.env.*
