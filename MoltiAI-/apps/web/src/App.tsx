@@ -3,7 +3,6 @@ import {createRoot} from 'react-dom/client';
 import {
   ArrowRight,
   ClipboardList,
-  ExternalLink,
   FileVideo,
   Link2,
   Music,
@@ -35,6 +34,14 @@ type AnalysisResult = {
   url: string;
   confidence: 'high' | 'medium' | 'fallback';
   metadataPlan: string;
+  comparisons?: string[];
+  scores?: {
+    hook: number;
+    retention: number;
+    density: number;
+    cta: number;
+    titleScore: number;
+  };
   strengths: string[];
   risks: string[];
   hooks: string[];
@@ -44,6 +51,17 @@ type AnalysisResult = {
 };
 
 const workerUrl = import.meta.env.VITE_VIDEO_WORKER_URL ?? 'http://localhost:8787';
+
+const platformExamples: Record<Platform, string> = {
+  youtube: 'Shorts / 教學 / 開箱 / 觀點型影片',
+  instagram: 'Reels / 品牌曝光 / 生活情境影片',
+  facebook: 'Facebook Reels / 社群互動 / 導購影片',
+  tiktok: 'TikTok / 節奏快 / 高互動短影音',
+  douyin: '抖音 / 強 Hook / 高密度資訊流',
+  xiaohongshu: '小紅書 / 種草 / 開箱心得 / 生活提案',
+  other: '其他影音頻道 / 參考影片',
+  unknown: '文字主題 / 手動補充分析',
+};
 
 const platformLabels: Record<Platform, string> = {
   youtube: 'YouTube / Shorts',
@@ -71,6 +89,16 @@ const detectPlatform = (input: string): Platform => {
   } catch {
     return 'unknown';
   }
+};
+
+const normalizeTopic = (url: string, title: string, description: string, platform: Platform) => {
+  const cleanTitle = title.trim();
+  const cleanDescription = description.trim();
+
+  if (cleanTitle) return cleanTitle;
+  if (cleanDescription) return cleanDescription.split(/[。！？\n]/)[0]?.trim() || cleanDescription;
+  if (platform !== 'unknown') return `${platformLabels[platform]} 參考影片`;
+  return url.trim() || '短影音主題';
 };
 
 const getMetadataPlan = (platform: Platform) => {
@@ -109,26 +137,34 @@ const buildAnalysis = ({
   description: string;
 }): AnalysisResult => {
   const platformLabel = platformLabels[platform];
-  const topic = title.trim() || description.trim() || `${platformLabel} 影片`;
-  const context = description.trim() || '尚未補充描述，先用網址平台與一般短影音策略產生分析草稿。';
+  const topic = normalizeTopic(url, title, description, platform);
+  const context =
+    description.trim() ||
+    `目前以「${topic}」和 ${platformExamples[platform]} 的常見節奏建立可執行分析。`;
 
   const confidence: AnalysisResult['confidence'] =
     platform === 'youtube' ? 'high' : platform === 'unknown' ? 'fallback' : 'medium';
 
   const hooks = [
-    `你是不是也忽略了「${topic.slice(0, 18)}」背後真正吸引人的點？`,
-    `先別急著滑走，這支影片最值得拆的是前三秒。`,
-    `同樣題材，為什麼有些影片能讓人看到最後？`,
+    `你是不是也遇過「${topic.slice(0, 18)}」但不知道怎麼判斷值不值得？`,
+    `先看這 3 秒，這就是「${topic.slice(0, 14)}」能不能爆的關鍵。`,
+    `同樣是 ${topic.slice(0, 12)}，為什麼有些人一開口就讓人想看完？`,
+    `如果你正在做 ${topic.slice(0, 12)}，這個錯誤先不要犯。`,
   ];
 
   const storyboard = [
-    `0-3s：用強問題或反差畫面開場，讓觀眾立刻知道這支影片和自己有關。`,
-    `3-8s：快速交代核心情境，把影片主題轉成一個具體痛點或利益。`,
-    `8-12s：補上證據、過程或前後差異，避免只剩空泛描述。`,
-    `12-15s：用明確 CTA 收尾，例如留言、點連結、領取方案或立即試用。`,
+    `0-3s：用問題或反差畫面開場，字幕直接打出「${topic.slice(0, 14)} 的關鍵不是你想的那樣」。`,
+    `3-6s：快速展示參考影片或主題中的核心情境，讓觀眾知道這和自己有關。`,
+    `6-10s：拆出 2 個可複製元素：開場語氣、畫面節奏、賣點呈現或情緒轉折。`,
+    `10-13s：補一個改寫方向，把原影片靈感轉成你的品牌、商品或服務版本。`,
+    `13-15s：用明確 CTA 收尾，要求留言、點連結、私訊或直接生成同款短影音。`,
   ];
 
-  const ctas = ['立即了解完整方案', '留言「想要」取得模板', '把這支影片改成你的品牌版本'];
+  const ctas = [
+    '留言「想要」取得同款腳本',
+    '把這支影片改成你的品牌版本',
+    '上傳 3 張圖片，直接生成 15 秒短影音',
+  ];
 
   return {
     platform,
@@ -137,16 +173,16 @@ const buildAnalysis = ({
     confidence,
     metadataPlan: getMetadataPlan(platform),
     strengths: [
-      '可從既有影片網址快速建立分析脈絡，降低使用者輸入成本。',
-      '適合把熱門題材拆成 Hook、分鏡和 CTA，再改寫成可生成影片的 prompt。',
-      '能銜接目前 15 秒影片生成器，形成「分析 -> 重構 -> 生成」流程。',
+      `主題明確，可直接拆成「吸引注意 -> 建立痛點 -> 給出解法 -> CTA」的 15 秒結構。`,
+      `${platformLabel} 適合用高密度字幕和快速畫面轉場，提高前三秒停留率。`,
+      '分析結果可直接帶入影片生成器，形成「網址/主題 -> Hook -> 分鏡 -> CTA -> MP4」流程。',
     ],
     risks: [
       platform === 'youtube'
         ? '若未設定 YouTube API key，目前只能做前端辨識與手動補充分析。'
         : '此平台可能遇到登入、反爬、地區或 API 權限限制，需保留手動補資料流程。',
       '只貼網址不一定能取得字幕與完整畫面內容，進階版需要轉錄、截圖或使用者上傳素材。',
-      '平台內容授權與隱私要分開處理，分析公開資料和下載/重製影片是不同風險。',
+      '目前輸出是策略重構，不會下載或複製原影片；商用時仍要注意素材授權。',
     ],
     hooks,
     storyboard,
@@ -182,10 +218,6 @@ function Home({onCreate, onAnalyze}: {onCreate: () => void; onAnalyze: () => voi
             <FileVideo size={20} />
             生成 15 秒影片
           </button>
-          <a className="secondary" href="https://reels-diagnose-moltiai.vercel.app/" target="_blank">
-            <ExternalLink size={20} />
-            舊版診斷工具
-          </a>
         </div>
       </section>
 
@@ -221,13 +253,40 @@ function AnalyzeUrl({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [error, setError] = useState('');
 
   const platform = detectPlatform(url);
-  const canAnalyze = platform !== 'unknown';
+  const canAnalyze = url.trim().length >= 4 || title.trim().length >= 2 || description.trim().length >= 4;
 
-  const analyze = () => {
+  const analyze = async () => {
     if (!canAnalyze) return;
-    setResult(buildAnalysis({url, platform, title, description}));
+    setStatus('loading');
+    setError('');
+
+    try {
+      const response = await fetch(`${workerUrl}/analyze`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url, title, description}),
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const data = (await response.json()) as AnalysisResult;
+      setResult(data);
+      setStatus('idle');
+    } catch (analysisError) {
+      setResult(buildAnalysis({url, platform, title, description}));
+      setStatus('error');
+      setError(
+        analysisError instanceof Error
+          ? `已改用本地策略分析。後端暫時無法抓取資料：${analysisError.message}`
+          : '已改用本地策略分析。後端暫時無法抓取資料。'
+      );
+    }
   };
 
   return (
@@ -248,7 +307,7 @@ function AnalyzeUrl({
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://www.youtube.com/shorts/..."
+              placeholder="貼影片網址，或直接輸入主題文字"
             />
             <span className="hint">目前辨識：{platformLabels[platform]}</span>
           </label>
@@ -271,20 +330,41 @@ function AnalyzeUrl({
             />
           </label>
 
-          <button disabled={!canAnalyze} onClick={analyze}>
+          <button disabled={!canAnalyze || status === 'loading'} onClick={analyze}>
             <Search size={20} />
-            開始分析
+            {status === 'loading' ? '分析中...' : '產生 Hook / 分鏡 / CTA'}
           </button>
         </div>
 
         <aside className="preview widePreview">
           <h2>分析結果</h2>
+          {error ? <p className="error">{error}</p> : null}
           {!result ? (
             <p>貼上網址後會在這裡產生平台判斷、資料取得策略、Hook、分鏡與 CTA。</p>
           ) : (
             <div className="analysis">
               <div className={`badge ${result.confidence}`}>{result.platformLabel}</div>
               <p>{result.metadataPlan}</p>
+
+              {result.comparisons?.length ? (
+                <>
+                  <h3>同題材對照組</h3>
+                  <ol>{result.comparisons.map((item) => <li key={item}>{item}</li>)}</ol>
+                </>
+              ) : null}
+
+              {result.scores ? (
+                <>
+                  <h3>診斷分數</h3>
+                  <ul>
+                    <li>Hook：{result.scores.hook}/5</li>
+                    <li>留存節奏：{result.scores.retention}/5</li>
+                    <li>資訊密度：{result.scores.density}/5</li>
+                    <li>CTA：{result.scores.cta}/5</li>
+                    <li>標題吸引力：{result.scores.titleScore}/5</li>
+                  </ul>
+                </>
+              ) : null}
 
               <h3>優勢</h3>
               <ul>{result.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
