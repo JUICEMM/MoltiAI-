@@ -1,0 +1,33 @@
+{
+  "prompt": "幫我做一支 15 秒影片，介紹這間咖啡店的手沖咖啡、安靜空間，以及適合下午工作的氛圍。",
+  "title": "安靜午後，從一杯手沖開始",
+  "tone": "warm_lifestyle",
+  "cta": "今天就來坐坐",
+  "brandName": "VIDGO",
+  "scenes": [
+    {
+      "caption": "想找一個安靜的午後角落？",
+      "voiceover": "想找一個安靜的午後角落？",
+      "image": "sample-01.svg",
+      "motion": "slow_zoom_in"
+    },
+    {
+      "caption": "手沖咖啡，現點現做",
+      "voiceover": "這裡的手沖咖啡，現點現做，香氣很乾淨。",
+      "image": "sample-02.svg",
+      "motion": "pan_left"
+    },
+    {
+      "caption": "也適合工作、閱讀、放空",
+      "voiceover": "安靜的座位，也很適合工作、閱讀，或只是放空。",
+      "image": "sample-03.svg",
+      "motion": "slow_zoom_out"
+    },
+    {
+      "caption": "15 秒，留下舒服的一段時間",
+      "voiceover": "今天就來坐坐，留一段舒服的時間給自己。",
+      "image": "sample-04.svg",
+      "motion": "cta_push"
+    }
+  ]
+}
