@@ -50,7 +50,112 @@ type AnalysisResult = {
   videoPrompt: string;
 };
 
+type ContactInfo = {
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+};
+
 const workerUrl = import.meta.env.VITE_VIDEO_WORKER_URL ?? 'http://localhost:8787';
+
+const emptyContact: ContactInfo = {
+  companyName: '',
+  contactName: '',
+  phone: '',
+  email: '',
+};
+
+const formatContactLine = (contact: ContactInfo) => {
+  const lines = [
+    contact.companyName ? `公司：${contact.companyName}` : '',
+    contact.contactName ? `聯絡人：${contact.contactName}` : '',
+    contact.phone ? `電話：${contact.phone}` : '',
+    contact.email ? `Email：${contact.email}` : '',
+  ].filter(Boolean);
+
+  return lines.length ? lines.join('\n') : '尚未填寫客戶聯絡資料';
+};
+
+const buildStrategyReport = ({
+  result,
+  contact,
+  sourceUrl,
+  sourceTitle,
+  sourceDescription,
+}: {
+  result: AnalysisResult;
+  contact: ContactInfo;
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceDescription: string;
+}) => {
+  const scores = result.scores
+    ? [
+        `Hook 強度：${result.scores.hook}/5`,
+        `留存節奏：${result.scores.retention}/5`,
+        `資訊密度：${result.scores.density}/5`,
+        `CTA 明確度：${result.scores.cta}/5`,
+        `標題/主題吸引力：${result.scores.titleScore}/5`,
+      ].join('\n')
+    : '尚無量化分數';
+
+  const source = [
+    sourceUrl ? `影片網址：${sourceUrl}` : '',
+    sourceTitle ? `影片標題：${sourceTitle}` : '',
+    sourceDescription ? `補充描述：${sourceDescription}` : '',
+  ].filter(Boolean);
+
+  return `MoltiAI 短影音策略分析報告
+
+一、客戶資料
+${formatContactLine(contact)}
+
+二、分析來源
+平台：${result.platformLabel}
+可信度：${result.confidence}
+${source.length ? source.join('\n') : '來源：使用者輸入的影片或主題資料'}
+
+三、整體判斷
+${result.metadataPlan}
+
+四、量化評分
+${scores}
+
+五、優勢
+${result.strengths.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+
+六、風險與改善方向
+${result.risks.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+
+七、同題材對照組
+${(result.comparisons?.length ? result.comparisons : ['尚無可用對照組'])
+  .map((item, index) => `${index + 1}. ${item}`)
+  .join('\n')}
+
+八、建議 Hook
+${result.hooks.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+
+九、15 秒分鏡建議
+${result.storyboard.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+
+十、CTA 建議
+${result.ctas.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+
+十一、下一步執行建議
+1. 先用第 1 個 Hook 製作 15 秒直式短影音。
+2. 同一素材再做 3 個版本：不同開頭、不同 CTA、不同字幕節奏。
+3. 投放前先用前 3 秒停留率、完整觀看率、點擊率判斷是否保留。
+4. 若客戶願意提供商品圖或品牌素材，可直接進入「生成影片」流程。
+
+--
+瞬影科技 MoltiAI
+Wondershare 台灣代理商
+TOPS台北好購網科技服務供應商
+經濟部商發署數位轉型培訓機構
+TEL:02-2634-2616
+官網：www.moltiai.com`;
+};
 
 const platformExamples: Record<Platform, string> = {
   youtube: 'Shorts / 教學 / 開箱 / 觀點型影片',
@@ -252,12 +357,53 @@ function AnalyzeUrl({
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [contact, setContact] = useState<ContactInfo>(emptyContact);
+  const [copyStatus, setCopyStatus] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState('');
 
   const platform = detectPlatform(url);
   const canAnalyze = url.trim().length >= 4 || title.trim().length >= 2 || description.trim().length >= 4;
+  const report = result
+    ? buildStrategyReport({
+        result,
+        contact,
+        sourceUrl: url,
+        sourceTitle: title,
+        sourceDescription: description,
+      })
+    : '';
+
+  const updateContact = (field: keyof ContactInfo, value: string) => {
+    setContact((current) => ({...current, [field]: value}));
+  };
+
+  const copyReport = async () => {
+    if (!report) return;
+
+    try {
+      await navigator.clipboard.writeText(report);
+      setCopyStatus('已複製策略報告');
+    } catch {
+      setCopyStatus('瀏覽器不允許自動複製，請手動選取報告文字');
+    }
+  };
+
+  const downloadReport = () => {
+    if (!report) return;
+
+    const blob = new Blob([report], {type: 'text/plain;charset=utf-8'});
+    const urlObject = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeCompany = contact.companyName.trim() || 'client';
+    link.href = urlObject;
+    link.download = `moltiai-strategy-report-${safeCompany}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(urlObject);
+  };
 
   const analyze = async () => {
     if (!canAnalyze) return;
@@ -302,6 +448,44 @@ function AnalyzeUrl({
 
       <section className="grid">
         <div className="form">
+          <div className="formGroup">
+            <h2>客戶資料</h2>
+            <label>
+              對方公司名稱
+              <input
+                value={contact.companyName}
+                onChange={(event) => updateContact('companyName', event.target.value)}
+                placeholder="例如：ABC 美學診所 / XX 餐飲品牌"
+              />
+            </label>
+            <label>
+              聯絡人姓名
+              <input
+                value={contact.contactName}
+                onChange={(event) => updateContact('contactName', event.target.value)}
+                placeholder="例如：王小姐"
+              />
+            </label>
+            <div className="twoFields">
+              <label>
+                電話
+                <input
+                  value={contact.phone}
+                  onChange={(event) => updateContact('phone', event.target.value)}
+                  placeholder="手機或公司電話"
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={contact.email}
+                  onChange={(event) => updateContact('email', event.target.value)}
+                  placeholder="client@example.com"
+                />
+              </label>
+            </div>
+          </div>
           <label>
             影片網址
             <input
@@ -385,6 +569,22 @@ function AnalyzeUrl({
                 <FileVideo size={18} />
                 用這份分析生成影片
               </button>
+
+              <div className="reportBox">
+                <div className="reportHeader">
+                  <h3>策略建議報告</h3>
+                  <div className="reportActions">
+                    <button type="button" className="miniButton" onClick={copyReport}>
+                      複製
+                    </button>
+                    <button type="button" className="miniButton" onClick={downloadReport}>
+                      下載 TXT
+                    </button>
+                  </div>
+                </div>
+                {copyStatus ? <p className="hint">{copyStatus}</p> : null}
+                <pre className="reportText">{report}</pre>
+              </div>
             </div>
           )}
         </aside>
