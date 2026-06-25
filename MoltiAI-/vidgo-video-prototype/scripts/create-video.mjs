@@ -245,32 +245,21 @@ const run = async () => {
   }
 
   await new Promise((resolve, reject) => {
-    const command =
+    const remotionBin =
       process.platform === 'win32'
-        ? 'cmd.exe'
-        : 'npx';
+        ? path.join('node_modules', '.bin', 'remotion.cmd')
+        : path.join('node_modules', '.bin', 'remotion');
+    const renderArgs = [
+      'render',
+      'PromptImagesVertical',
+      process.platform === 'win32' ? remotionOutputPath : outputPath,
+      `--props=${process.platform === 'win32' ? remotionPropsPath : propsPath}`,
+    ];
+    const command = process.platform === 'win32' ? 'cmd.exe' : remotionBin;
     const commandArgs =
       process.platform === 'win32'
-        ? [
-            '/d',
-            '/s',
-            '/c',
-            [
-              'npx.cmd',
-              'remotion',
-              'render',
-              'PromptImagesVertical',
-              remotionOutputPath,
-              `--props=${remotionPropsPath}`,
-            ].join(' '),
-          ]
-        : [
-            'remotion',
-            'render',
-            'PromptImagesVertical',
-            outputPath,
-            `--props=${propsPath}`,
-          ];
+        ? ['/d', '/c', `${remotionBin} ${renderArgs.map((arg) => `"${arg}"`).join(' ')}`]
+        : renderArgs;
 
     const child = spawn(command, commandArgs, {stdio: 'inherit', env: buildSpawnEnv()});
 
