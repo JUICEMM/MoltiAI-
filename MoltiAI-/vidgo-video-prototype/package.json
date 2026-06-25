@@ -2,6 +2,9 @@
   "name": "vidgo-video-prototype",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render PromptImagesVertical out/prompt-images-vertical.mp4",
@@ -12,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rspack/binding-linux-x64-gnu": "1.7.11",
     "@remotion/cli": "4.0.482",
     "@remotion/media": "^4.0.482",
     "busboy": "1.6.0",
