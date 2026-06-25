@@ -10,10 +10,10 @@ export const RemotionRoot = () => {
     <Composition
       id="PromptImagesVertical"
       component={PromptImagesVertical}
-      durationInFrames={450}
-      fps={30}
-      width={1080}
-      height={1920}
+      durationInFrames={180}
+      fps={12}
+      width={720}
+      height={1280}
       schema={promptImagesVerticalSchema}
       defaultProps={promptImagesVerticalDefaultProps}
     />
