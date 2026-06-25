@@ -150,6 +150,24 @@ select {
   gap: 18px;
 }
 
+.formGroup {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.formGroup h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.twoFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .form label {
   display: grid;
   gap: 8px;
@@ -297,9 +315,62 @@ select {
   cursor: pointer;
 }
 
+.reportBox {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.reportHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reportHeader h3 {
+  margin: 0;
+}
+
+.reportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.miniButton {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 241, 0.06);
+  color: var(--text);
+  padding: 0 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reportText {
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 241, 0.04);
+  color: var(--muted);
+  padding: 14px;
+  font: 14px/1.55 Arial, "Microsoft JhengHei", sans-serif;
+}
+
 @media (max-width: 900px) {
   .grid,
   .steps {
+    grid-template-columns: 1fr;
+  }
+
+  .twoFields {
     grid-template-columns: 1fr;
   }
 
