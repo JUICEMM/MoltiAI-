@@ -77,6 +77,14 @@ const formatContactLine = (contact: ContactInfo) => {
   return lines.length ? lines.join('\n') : '尚未填寫客戶聯絡資料';
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
 const buildStrategyReport = ({
   result,
   contact,
@@ -393,16 +401,63 @@ function AnalyzeUrl({
   const downloadReport = () => {
     if (!report) return;
 
-    const blob = new Blob([report], {type: 'text/plain;charset=utf-8'});
-    const urlObject = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const safeCompany = contact.companyName.trim() || 'client';
-    link.href = urlObject;
-    link.download = `moltiai-strategy-report-${safeCompany}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(urlObject);
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
+
+    if (!printWindow) {
+      setCopyStatus('瀏覽器阻擋了 PDF 視窗，請允許彈出視窗後再試一次');
+      return;
+    }
+
+    const safeCompany = escapeHtml(contact.companyName.trim() || 'client');
+    const safeReport = escapeHtml(report);
+
+    printWindow.document.write(`<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <title>MoltiAI 策略報告 - ${safeCompany}</title>
+    <style>
+      @page { size: A4; margin: 18mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #171717;
+        background: #fff;
+        font-family: Arial, "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+      }
+      .report {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12.5pt;
+        line-height: 1.65;
+      }
+      @media screen {
+        body { background: #f2f2f2; padding: 24px; }
+        .page {
+          width: 210mm;
+          min-height: 297mm;
+          margin: 0 auto;
+          padding: 18mm;
+          background: #fff;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="report">${safeReport}</div>
+    </main>
+    <script>
+      window.addEventListener('load', () => {
+        window.focus();
+        window.print();
+      });
+    </script>
+  </body>
+</html>`);
+    printWindow.document.close();
+    setCopyStatus('已開啟 PDF 視窗，請選擇「另存為 PDF」');
   };
 
   const analyze = async () => {
@@ -578,7 +633,7 @@ function AnalyzeUrl({
                       複製
                     </button>
                     <button type="button" className="miniButton" onClick={downloadReport}>
-                      下載 TXT
+                      下載 PDF
                     </button>
                   </div>
                 </div>
