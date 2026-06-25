@@ -48,40 +48,20 @@ const runRender = ({prompt, cta, images, musicMode, musicPath, outputPath}) => {
 
   return new Promise((resolve, reject) => {
     const child = spawn(
-      process.platform === 'win32' ? 'cmd.exe' : 'node',
-      process.platform === 'win32'
-        ? [
-            '/d',
-            '/s',
-            '/c',
-            [
-              'node',
-              'scripts/create-video.mjs',
-              '--prompt',
-              JSON.stringify(prompt),
-              '--images',
-              JSON.stringify(images.join(',')),
-              '--cta',
-              JSON.stringify(cta),
-              '--music',
-              JSON.stringify(music),
-              '--output',
-              JSON.stringify(outputPath.replace(/\\/g, '/')),
-            ].join(' '),
-          ]
-        : [
-            'scripts/create-video.mjs',
-            '--prompt',
-            prompt,
-            '--images',
-            images.join(','),
-            '--cta',
-            cta,
-            '--music',
-            music,
-            '--output',
-            outputPath,
-          ],
+      process.execPath,
+      [
+        'scripts/create-video.mjs',
+        '--prompt',
+        prompt,
+        '--images',
+        images.join(','),
+        '--cta',
+        cta,
+        '--music',
+        music,
+        '--output',
+        outputPath,
+      ],
       {stdio: 'inherit', env: buildSpawnEnv()}
     );
 

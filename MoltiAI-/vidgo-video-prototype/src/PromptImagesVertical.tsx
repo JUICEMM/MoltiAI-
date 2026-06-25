@@ -1,7 +1,7 @@
 import React from 'react';
-import {Audio} from '@remotion/media';
 import {
   AbsoluteFill,
+  Audio,
   Easing,
   Img,
   interpolate,
@@ -45,7 +45,7 @@ export const promptImagesVerticalDefaultProps: PromptImagesVerticalProps = {
   brandName: 'VIDGO',
   music: {
     src: 'music/default-pulse.wav',
-    volume: 0.22,
+    volume: 0.55,
   },
   scenes: [
     {

@@ -1,0 +1,16 @@
+
+> moltiai-video-monorepo@0.1.0 web:dev
+> npm --workspace apps/web run dev
+
+
+> @moltiai/web@0.1.0 dev
+> vite --host 0.0.0.0
+
+
+  [32m[1mVITE[22m v8.1.0[39m  [2mready in [0m[1m147[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.105:[1m5173[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m下午3:28:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m下午3:28:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles.css[22m

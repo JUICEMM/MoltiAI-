@@ -16,7 +16,7 @@ const parseArgs = (argv) => {
     brandName: 'VIDGO',
     output: '',
     music: 'auto',
-    musicVolume: 0.22,
+    musicVolume: 0.55,
     noRender: false,
   };
 
@@ -70,7 +70,7 @@ Options:
   --cta        Optional. Defaults to 了解更多.
   --brand      Optional. Defaults to VIDGO.
   --music      Optional. "auto", "none", or a local .mp3/.wav/.m4a/.aac/.ogg path. Defaults to auto.
-  --music-volume Optional. Background music volume from 0 to 1. Defaults to 0.22.
+  --music-volume Optional. Background music volume from 0 to 1. Defaults to 0.55.
   --output     Optional. Output MP4 path.
   --no-render  Optional. Generate props JSON only.`);
 };
@@ -134,7 +134,7 @@ const prepareMusic = async ({music, musicVolume, jobId}) => {
 
   const volume = Number.isFinite(musicVolume)
     ? Math.max(0, Math.min(1, musicVolume))
-    : 0.22;
+    : 0.55;
 
   if (!music || music === 'auto') {
     return {

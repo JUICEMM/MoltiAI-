@@ -232,6 +232,71 @@ select {
   font-weight: 800;
 }
 
+.widePreview {
+  min-height: 520px;
+}
+
+.analysis {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis h3 {
+  margin: 8px 0 0;
+  font-size: 17px;
+}
+
+.analysis ul,
+.analysis ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.analysis li + li {
+  margin-top: 6px;
+}
+
+.badge {
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.badge.high {
+  background: rgba(215, 241, 113, 0.18);
+  color: var(--accent);
+}
+
+.badge.medium {
+  background: rgba(239, 184, 95, 0.16);
+  color: #efb85f;
+}
+
+.badge.fallback {
+  background: rgba(255, 159, 140, 0.16);
+  color: #ff9f8c;
+}
+
+.inlineAction {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #11130f;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .grid,
   .steps {
