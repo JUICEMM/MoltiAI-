@@ -1,0 +1,18 @@
+{
+  "name": "moltiai-video-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "vidgo-video-prototype"
+  ],
+  "scripts": {
+    "web:dev": "npm --workspace apps/web run dev",
+    "worker:dev": "npm --workspace vidgo-video-prototype run worker",
+    "worker:render": "npm --workspace vidgo-video-prototype run create-video",
+    "worker:typecheck": "npm --workspace vidgo-video-prototype run typecheck"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
+  }
+}
