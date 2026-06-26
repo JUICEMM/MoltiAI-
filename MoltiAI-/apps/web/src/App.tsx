@@ -77,13 +77,179 @@ const formatContactLine = (contact: ContactInfo) => {
   return lines.length ? lines.join('\n') : '尚未填寫客戶聯絡資料';
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+const sanitizeFilename = (value: string) =>
+  (value.trim() || 'client').replace(/[\\/:*?"<>|]/g, '-').slice(0, 40);
+
+const canvasToJpegBytes = (canvas: HTMLCanvasElement) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) {
+          reject(new Error('PDF image export failed.'));
+          return;
+        }
+
+        resolve(new Uint8Array(await blob.arrayBuffer()));
+      },
+      'image/jpeg',
+      0.92
+    );
+  });
+
+const concatBytes = (chunks: Uint8Array[]) => {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return output;
+};
+
+const buildPdfFromJpegs = (pages: Uint8Array[]) => {
+  const encoder = new TextEncoder();
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const objects: Uint8Array[] = [];
+  const pageIds: number[] = [];
+
+  objects[1] = encoder.encode('<< /Type /Catalog /Pages 2 0 R >>');
+
+  for (const [index, jpeg] of pages.entries()) {
+    const imageId = objects.length;
+    objects[imageId] = concatBytes([
+      encoder.encode(
+        `<< /Type /XObject /Subtype /Image /Width 1240 /Height 1754 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
+      ),
+      jpeg,
+      encoder.encode('\nendstream'),
+    ]);
+
+    const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im${index + 1} Do\nQ\n`;
+    const contentId = objects.length;
+    objects[contentId] = encoder.encode(
+      `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}endstream`
+    );
+
+    const pageId = objects.length;
+    pageIds.push(pageId);
+    objects[pageId] = encoder.encode(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im${
+        index + 1
+      } ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
+    );
+  }
+
+  objects[2] = encoder.encode(
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${
+      pageIds.length
+    } >>`
+  );
+
+  const chunks: Uint8Array[] = [encoder.encode('%PDF-1.4\n%\xFF\xFF\xFF\xFF\n')];
+  const offsets = [0];
+
+  for (let id = 1; id < objects.length; id += 1) {
+    offsets[id] = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    chunks.push(encoder.encode(`${id} 0 obj\n`));
+    chunks.push(objects[id]);
+    chunks.push(encoder.encode('\nendobj\n'));
+  }
+
+  const xrefOffset = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  chunks.push(encoder.encode(`xref\n0 ${objects.length}\n0000000000 65535 f \n`));
+
+  for (let id = 1; id < objects.length; id += 1) {
+    chunks.push(encoder.encode(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`));
+  }
+
+  chunks.push(
+    encoder.encode(
+      `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+    )
+  );
+
+  return new Blob([concatBytes(chunks)], {type: 'application/pdf'});
+};
+
+const renderReportPdf = async (report: string) => {
+  const canvasWidth = 1240;
+  const canvasHeight = 1754;
+  const marginX = 92;
+  const marginTop = 96;
+  const marginBottom = 92;
+  const fontSize = 26;
+  const lineHeight = 40;
+  const font = `${fontSize}px Arial, "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+  const maxWidth = canvasWidth - marginX * 2;
+
+  const measureCanvas = document.createElement('canvas');
+  const measureContext = measureCanvas.getContext('2d');
+
+  if (!measureContext) {
+    throw new Error('Canvas is not available.');
+  }
+
+  measureContext.font = font;
+
+  const wrapLine = (line: string) => {
+    if (!line.trim()) return [''];
+
+    const wrapped: string[] = [];
+    let current = '';
+
+    for (const char of line) {
+      const next = `${current}${char}`;
+
+      if (measureContext.measureText(next).width > maxWidth && current) {
+        wrapped.push(current);
+        current = char.trimStart();
+      } else {
+        current = next;
+      }
+    }
+
+    if (current) wrapped.push(current);
+    return wrapped;
+  };
+
+  const lines = report.split('\n').flatMap(wrapLine);
+  const pages: Uint8Array[] = [];
+  let currentLine = 0;
+
+  while (currentLine < lines.length) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Canvas is not available.');
+    }
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+    context.fillStyle = '#171717';
+    context.font = font;
+    context.textBaseline = 'top';
+
+    let y = marginTop;
+
+    while (currentLine < lines.length && y <= canvasHeight - marginBottom - lineHeight) {
+      const line = lines[currentLine];
+      context.fillText(line, marginX, y);
+      y += line ? lineHeight : Math.round(lineHeight * 0.62);
+      currentLine += 1;
+    }
+
+    pages.push(await canvasToJpegBytes(canvas));
+  }
+
+  return buildPdfFromJpegs(pages);
+};
 
 const buildStrategyReport = ({
   result,
@@ -133,24 +299,21 @@ ${scores}
 五、優勢
 ${result.strengths.map((item, index) => `${index + 1}. ${item}`).join('\n')}
 
-六、風險與改善方向
-${result.risks.map((item, index) => `${index + 1}. ${item}`).join('\n')}
-
-七、同題材對照組
+六、同題材對照組
 ${(result.comparisons?.length ? result.comparisons : ['尚無可用對照組'])
   .map((item, index) => `${index + 1}. ${item}`)
   .join('\n')}
 
-八、建議 Hook
+七、建議 Hook
 ${result.hooks.map((item, index) => `${index + 1}. ${item}`).join('\n')}
 
-九、15 秒分鏡建議
+八、15 秒分鏡建議
 ${result.storyboard.map((item, index) => `${index + 1}. ${item}`).join('\n')}
 
-十、CTA 建議
+九、CTA 建議
 ${result.ctas.map((item, index) => `${index + 1}. ${item}`).join('\n')}
 
-十一、下一步執行建議
+十、下一步執行建議
 1. 先用第 1 個 Hook 製作 15 秒直式短影音。
 2. 同一素材再做 3 個版本：不同開頭、不同 CTA、不同字幕節奏。
 3. 投放前先用前 3 秒停留率、完整觀看率、點擊率判斷是否保留。
@@ -398,66 +561,24 @@ function AnalyzeUrl({
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!report) return;
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1100');
-
-    if (!printWindow) {
-      setCopyStatus('瀏覽器阻擋了 PDF 視窗，請允許彈出視窗後再試一次');
-      return;
+    try {
+      setCopyStatus('正在產生 PDF...');
+      const pdf = await renderReportPdf(report);
+      const pdfUrl = URL.createObjectURL(pdf);
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `moltiai-strategy-report-${sanitizeFilename(contact.companyName)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(pdfUrl);
+      setCopyStatus('PDF 已開始下載');
+    } catch (pdfError) {
+      setCopyStatus(pdfError instanceof Error ? pdfError.message : 'PDF 產生失敗，請稍候再試');
     }
-
-    const safeCompany = escapeHtml(contact.companyName.trim() || 'client');
-    const safeReport = escapeHtml(report);
-
-    printWindow.document.write(`<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="utf-8" />
-    <title>MoltiAI 策略報告 - ${safeCompany}</title>
-    <style>
-      @page { size: A4; margin: 18mm; }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        color: #171717;
-        background: #fff;
-        font-family: Arial, "Microsoft JhengHei", "Noto Sans TC", sans-serif;
-      }
-      .report {
-        white-space: pre-wrap;
-        word-break: break-word;
-        font-size: 12.5pt;
-        line-height: 1.65;
-      }
-      @media screen {
-        body { background: #f2f2f2; padding: 24px; }
-        .page {
-          width: 210mm;
-          min-height: 297mm;
-          margin: 0 auto;
-          padding: 18mm;
-          background: #fff;
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="page">
-      <div class="report">${safeReport}</div>
-    </main>
-    <script>
-      window.addEventListener('load', () => {
-        window.focus();
-        window.print();
-      });
-    </script>
-  </body>
-</html>`);
-    printWindow.document.close();
-    setCopyStatus('已開啟 PDF 視窗，請選擇「另存為 PDF」');
   };
 
   const analyze = async () => {
@@ -607,9 +728,6 @@ function AnalyzeUrl({
 
               <h3>優勢</h3>
               <ul>{result.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
-
-              <h3>注意事項</h3>
-              <ul>{result.risks.map((item) => <li key={item}>{item}</li>)}</ul>
 
               <h3>Hook 變體</h3>
               <ol>{result.hooks.map((item) => <li key={item}>{item}</li>)}</ol>
