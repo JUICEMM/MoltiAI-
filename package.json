@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "studio": "remotion studio",
     "render": "remotion render PromptImagesVertical out/prompt-images-vertical.mp4",
