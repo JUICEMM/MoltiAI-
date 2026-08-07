@@ -1,32 +1,40 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {
   ArrowRight,
+  BarChart3,
+  Bot,
+  BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
+  ChevronLeft,
+  CircleDollarSign,
   ClipboardList,
+  FileText,
   FileVideo,
+  GraduationCap,
+  LayoutDashboard,
   Link2,
+  Megaphone,
   Music,
+  Play,
   Search,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Target,
   Upload,
+  UserRoundCheck,
+  Users,
+  Video,
   WandSparkles,
+  Workflow,
 } from 'lucide-react';
 import './styles.css';
 
-type RenderResult = {
-  status: 'idle' | 'submitting' | 'ready' | 'error';
-  message?: string;
-  videoUrl?: string;
-};
-
-type Platform =
-  | 'youtube'
-  | 'instagram'
-  | 'facebook'
-  | 'tiktok'
-  | 'douyin'
-  | 'xiaohongshu'
-  | 'other'
-  | 'unknown';
+type View = 'dashboard' | 'agents' | 'analyze' | 'create' | 'video-factory' | 'management';
+type Department = 'management' | 'sales' | 'marketing' | 'customer' | 'consulting' | 'training' | 'content' | 'finance';
+type Platform = 'youtube' | 'instagram' | 'facebook' | 'tiktok' | 'douyin' | 'xiaohongshu' | 'other' | 'unknown';
 
 type AnalysisResult = {
   platform: Platform;
@@ -35,13 +43,7 @@ type AnalysisResult = {
   confidence: 'high' | 'medium' | 'fallback';
   metadataPlan: string;
   comparisons?: string[];
-  scores?: {
-    hook: number;
-    retention: number;
-    density: number;
-    cta: number;
-    titleScore: number;
-  };
+  scores?: {hook: number; retention: number; density: number; cta: number; titleScore: number};
   strengths: string[];
   risks: string[];
   hooks: string[];
@@ -50,311 +52,94 @@ type AnalysisResult = {
   videoPrompt: string;
 };
 
-type ContactInfo = {
-  companyName: string;
-  contactName: string;
-  phone: string;
-  email: string;
+type ContactInfo = {companyName: string; contactName: string; phone: string; email: string};
+type RenderResult = {status: 'idle' | 'submitting' | 'ready' | 'error'; message?: string; videoUrl?: string};
+type Agent = {
+  id: string;
+  department: Department;
+  name: string;
+  title: string;
+  mission: string;
+  automations: string[];
+  approvals: string[];
+  samplePrompt: string;
+  icon: 'strategy' | 'sales' | 'marketing' | 'crm' | 'consultant' | 'training' | 'video' | 'finance';
 };
+type AgentRun = {id: string; agentId: string; agentName: string; prompt: string; output: string; createdAt: string; mode: 'AI' | 'fallback'};
 
 const workerUrl = import.meta.env.VITE_VIDEO_WORKER_URL ?? 'http://localhost:8787';
+const emptyContact: ContactInfo = {companyName: '', contactName: '', phone: '', email: ''};
 
-const emptyContact: ContactInfo = {
-  companyName: '',
-  contactName: '',
-  phone: '',
-  email: '',
-};
+const agents: Agent[] = [
+  {
+    id: 'strategy', department: 'management', name: 'CEO / Strategy Agent', title: '經營管理',
+    mission: '彙整公司 KPI、商機、專案與市場情報，產出主管決策摘要。',
+    automations: ['每日營運摘要', '每週 KPI / 商機檢視', '重大風險與待決策事項', '競品與 AI 趨勢整理'],
+    approvals: ['重大策略', '預算與投資', '對外承諾'],
+    samplePrompt: '整理本週業務、行銷、客戶與財務狀況，列出 3 個最需要我決策的事項。', icon: 'strategy'
+  },
+  {
+    id: 'sales', department: 'sales', name: 'Sales Agent', title: '業務開發',
+    mission: '研究潛在客戶、整理 ICP、產生個人化開發信與 Follow-up。',
+    automations: ['公司研究', 'ICP 評分', '開發信草稿', 'Follow-up 建議', '報價前需求摘要'],
+    approvals: ['寄出 Email', '正式報價', '承諾交付時程'],
+    samplePrompt: '針對一家 300 人製造業上市公司，整理 AI 導入切入點並草擬第一封開發信。', icon: 'sales'
+  },
+  {
+    id: 'marketing', department: 'marketing', name: 'Marketing Agent', title: '行銷管理',
+    mission: '把企業 AI 顧問服務拆成社群、SEO、短影音與活動內容。',
+    automations: ['內容日曆', 'SEO 題目', 'LinkedIn / Threads 文案', '短影音 Hook', 'Campaign 復盤'],
+    approvals: ['品牌聲明', '廣告預算', '敏感議題內容'],
+    samplePrompt: '把「企業 AI 導入不是買 ChatGPT」做成一週 5 則內容，包含 2 支 30 秒短影音。', icon: 'marketing'
+  },
+  {
+    id: 'crm', department: 'customer', name: 'CRM / Customer Success Agent', title: '客戶管理',
+    mission: '整理商機階段、追蹤客戶回覆與續約機會，避免漏追。',
+    automations: ['商機摘要', '待 Follow-up 清單', '會議紀要轉 CRM', '續約 / 加購提醒', '失聯客戶再啟動'],
+    approvals: ['客戶狀態異動', '折扣', '客訴回覆'],
+    samplePrompt: '把今天所有客戶互動整理成下一步、Owner、期限與成交機率。', icon: 'crm'
+  },
+  {
+    id: 'consultant', department: 'consulting', name: 'AI Consultant Agent', title: 'AI 顧問',
+    mission: '執行 AI 成熟度診斷、Use Case 評估、治理檢查與 90 日 Roadmap。',
+    automations: ['成熟度評估', 'Use Case 優先排序', 'As-Is / To-Be', '治理缺口', '90 日導入路線圖'],
+    approvals: ['最終顧問建議', '法遵判定', '客戶正式交付'],
+    samplePrompt: '客戶是 500 人零售集團，客服與行銷最耗工，請找出 3 個 Pilot 並估 KPI。', icon: 'consultant'
+  },
+  {
+    id: 'training', department: 'training', name: 'Training Agent', title: '教育訓練',
+    mission: '依產業與職能組合企業 AI 課程、工作坊、作業與課後 30 日任務。',
+    automations: ['課綱配置', '講師教案', '分組實作', '學員作業', '課後追蹤'],
+    approvals: ['正式課綱', '客製案例', '評量與證書'],
+    samplePrompt: '規劃上市櫃公司 6 小時企業 AI 生產力工作坊，要求每組產出一個 Workflow。', icon: 'training'
+  },
+  {
+    id: 'content', department: 'content', name: 'Content / Video Agent', title: '內容與 AI 影音',
+    mission: '保留並串接 Analyze URL、策略 PDF、腳本、分鏡與 15 秒影片生成。',
+    automations: ['Analyze URL', 'Hook / 分鏡 / CTA', '策略 PDF', '影片 Prompt', '15 秒影片生成'],
+    approvals: ['對外發布', '品牌素材', '人物 / 版權素材'],
+    samplePrompt: '分析一支競品影片，產出 5 個 Hook、15 秒分鏡、CTA 與影片生成 Prompt。', icon: 'video'
+  },
+  {
+    id: 'finance', department: 'finance', name: 'Finance Management Agent', title: '財務管理',
+    mission: '彙整應收、成本、毛利與現金流，提供管理提醒，不自動執行付款。',
+    automations: ['應收提醒', '專案毛利摘要', '軟體/API 成本整理', '月度現金流摘要', '異常費用提醒'],
+    approvals: ['任何付款', '會計認列', '稅務申報', '薪資與銀行操作'],
+    samplePrompt: '整理本月營收、應收、固定成本與 API 成本，指出現金流風險與 3 個改善動作。', icon: 'finance'
+  },
+];
 
-const formatContactLine = (contact: ContactInfo) => {
-  const lines = [
-    contact.companyName ? `公司：${contact.companyName}` : '',
-    contact.contactName ? `聯絡人：${contact.contactName}` : '',
-    contact.phone ? `電話：${contact.phone}` : '',
-    contact.email ? `Email：${contact.email}` : '',
-  ].filter(Boolean);
-
-  return lines.length ? lines.join('\n') : '尚未填寫客戶聯絡資料';
-};
-
-const sanitizeFilename = (value: string) =>
-  (value.trim() || 'client').replace(/[\\/:*?"<>|]/g, '-').slice(0, 40);
-
-const canvasToJpegBytes = (canvas: HTMLCanvasElement) =>
-  new Promise<Uint8Array>((resolve, reject) => {
-    canvas.toBlob(
-      async (blob) => {
-        if (!blob) {
-          reject(new Error('PDF image export failed.'));
-          return;
-        }
-
-        resolve(new Uint8Array(await blob.arrayBuffer()));
-      },
-      'image/jpeg',
-      0.92
-    );
-  });
-
-const concatBytes = (chunks: Uint8Array[]) => {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const output = new Uint8Array(total);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return output;
-};
-
-const buildPdfFromJpegs = (pages: Uint8Array[]) => {
-  const encoder = new TextEncoder();
-  const pageWidth = 595.28;
-  const pageHeight = 841.89;
-  const objects: Uint8Array[] = [];
-  const pageIds: number[] = [];
-
-  objects[1] = encoder.encode('<< /Type /Catalog /Pages 2 0 R >>');
-
-  for (const [index, jpeg] of pages.entries()) {
-    const imageId = objects.length;
-    objects[imageId] = concatBytes([
-      encoder.encode(
-        `<< /Type /XObject /Subtype /Image /Width 1240 /Height 1754 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
-      ),
-      jpeg,
-      encoder.encode('\nendstream'),
-    ]);
-
-    const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im${index + 1} Do\nQ\n`;
-    const contentId = objects.length;
-    objects[contentId] = encoder.encode(
-      `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}endstream`
-    );
-
-    const pageId = objects.length;
-    pageIds.push(pageId);
-    objects[pageId] = encoder.encode(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im${
-        index + 1
-      } ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
-    );
-  }
-
-  objects[2] = encoder.encode(
-    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${
-      pageIds.length
-    } >>`
-  );
-
-  const chunks: Uint8Array[] = [encoder.encode('%PDF-1.4\n%\xFF\xFF\xFF\xFF\n')];
-  const offsets = [0];
-
-  for (let id = 1; id < objects.length; id += 1) {
-    offsets[id] = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    chunks.push(encoder.encode(`${id} 0 obj\n`));
-    chunks.push(objects[id]);
-    chunks.push(encoder.encode('\nendobj\n'));
-  }
-
-  const xrefOffset = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  chunks.push(encoder.encode(`xref\n0 ${objects.length}\n0000000000 65535 f \n`));
-
-  for (let id = 1; id < objects.length; id += 1) {
-    chunks.push(encoder.encode(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`));
-  }
-
-  chunks.push(
-    encoder.encode(
-      `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
-    )
-  );
-
-  return new Blob([concatBytes(chunks)], {type: 'application/pdf'});
-};
-
-const renderReportPdf = async (report: string) => {
-  const canvasWidth = 1240;
-  const canvasHeight = 1754;
-  const marginX = 92;
-  const marginTop = 96;
-  const marginBottom = 92;
-  const fontSize = 26;
-  const lineHeight = 40;
-  const font = `${fontSize}px Arial, "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
-  const maxWidth = canvasWidth - marginX * 2;
-
-  const measureCanvas = document.createElement('canvas');
-  const measureContext = measureCanvas.getContext('2d');
-
-  if (!measureContext) {
-    throw new Error('Canvas is not available.');
-  }
-
-  measureContext.font = font;
-
-  const wrapLine = (line: string) => {
-    if (!line.trim()) return [''];
-
-    const wrapped: string[] = [];
-    let current = '';
-
-    for (const char of line) {
-      const next = `${current}${char}`;
-
-      if (measureContext.measureText(next).width > maxWidth && current) {
-        wrapped.push(current);
-        current = char.trimStart();
-      } else {
-        current = next;
-      }
-    }
-
-    if (current) wrapped.push(current);
-    return wrapped;
-  };
-
-  const lines = report.split('\n').flatMap(wrapLine);
-  const pages: Uint8Array[] = [];
-  let currentLine = 0;
-
-  while (currentLine < lines.length) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-      throw new Error('Canvas is not available.');
-    }
-
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, canvasWidth, canvasHeight);
-    context.fillStyle = '#171717';
-    context.font = font;
-    context.textBaseline = 'top';
-
-    let y = marginTop;
-
-    while (currentLine < lines.length && y <= canvasHeight - marginBottom - lineHeight) {
-      const line = lines[currentLine];
-      context.fillText(line, marginX, y);
-      y += line ? lineHeight : Math.round(lineHeight * 0.62);
-      currentLine += 1;
-    }
-
-    pages.push(await canvasToJpegBytes(canvas));
-  }
-
-  return buildPdfFromJpegs(pages);
-};
-
-const buildStrategyReport = ({
-  result,
-  contact,
-  sourceUrl,
-  sourceTitle,
-  sourceDescription,
-}: {
-  result: AnalysisResult;
-  contact: ContactInfo;
-  sourceUrl: string;
-  sourceTitle: string;
-  sourceDescription: string;
-}) => {
-  const scores = result.scores
-    ? [
-        `Hook 強度：${result.scores.hook}/5`,
-        `留存節奏：${result.scores.retention}/5`,
-        `資訊密度：${result.scores.density}/5`,
-        `CTA 明確度：${result.scores.cta}/5`,
-        `標題/主題吸引力：${result.scores.titleScore}/5`,
-      ].join('\n')
-    : '尚無量化分數';
-
-  const source = [
-    sourceUrl ? `影片網址：${sourceUrl}` : '',
-    sourceTitle ? `影片標題：${sourceTitle}` : '',
-    sourceDescription ? `補充描述：${sourceDescription}` : '',
-  ].filter(Boolean);
-
-  return `MoltiAI 短影音策略分析報告
-
-一、客戶資料
-${formatContactLine(contact)}
-
-二、分析來源
-平台：${result.platformLabel}
-可信度：${result.confidence}
-${source.length ? source.join('\n') : '來源：使用者輸入的影片或主題資料'}
-
-三、整體判斷
-${result.metadataPlan}
-
-四、量化評分
-${scores}
-
-五、優勢
-${result.strengths.map((item, index) => `${index + 1}. ${item}`).join('\n')}
-
-六、同題材對照組
-${(result.comparisons?.length ? result.comparisons : ['尚無可用對照組'])
-  .map((item, index) => `${index + 1}. ${item}`)
-  .join('\n')}
-
-七、建議 Hook
-${result.hooks.map((item, index) => `${index + 1}. ${item}`).join('\n')}
-
-八、15 秒分鏡建議
-${result.storyboard.map((item, index) => `${index + 1}. ${item}`).join('\n')}
-
-九、CTA 建議
-${result.ctas.map((item, index) => `${index + 1}. ${item}`).join('\n')}
-
-十、下一步執行建議
-1. 先用第 1 個 Hook 製作 15 秒直式短影音。
-2. 同一素材再做 3 個版本：不同開頭、不同 CTA、不同字幕節奏。
-3. 投放前先用前 3 秒停留率、完整觀看率、點擊率判斷是否保留。
-4. 若客戶願意提供商品圖或品牌素材，可直接進入「生成影片」流程。
-
---
-瞬影科技 MoltiAI
-Wondershare 台灣代理商
-TOPS台北好購網科技服務供應商
-經濟部商發署數位轉型培訓機構
-TEL:02-2634-2616
-官網：www.moltiai.com`;
-};
-
-const platformExamples: Record<Platform, string> = {
-  youtube: 'Shorts / 教學 / 開箱 / 觀點型影片',
-  instagram: 'Reels / 品牌曝光 / 生活情境影片',
-  facebook: 'Facebook Reels / 社群互動 / 導購影片',
-  tiktok: 'TikTok / 節奏快 / 高互動短影音',
-  douyin: '抖音 / 強 Hook / 高密度資訊流',
-  xiaohongshu: '小紅書 / 種草 / 開箱心得 / 生活提案',
-  other: '其他影音頻道 / 參考影片',
-  unknown: '文字主題 / 手動補充分析',
+const departmentLabels: Record<Department, string> = {
+  management: '經營管理', sales: '業務', marketing: '行銷', customer: '客戶管理', consulting: '顧問', training: '教育訓練', content: '內容與 AI 影音', finance: '財務'
 };
 
 const platformLabels: Record<Platform, string> = {
-  youtube: 'YouTube / Shorts',
-  instagram: 'Instagram Reels',
-  facebook: 'Facebook Video / Reels',
-  tiktok: 'TikTok',
-  douyin: '抖音',
-  xiaohongshu: '小紅書',
-  other: '其他影音頻道',
-  unknown: '未辨識',
+  youtube: 'YouTube / Shorts', instagram: 'Instagram Reels', facebook: 'Facebook Video / Reels', tiktok: 'TikTok', douyin: '抖音', xiaohongshu: '小紅書', other: '其他影音頻道', unknown: '未辨識'
 };
 
 const detectPlatform = (input: string): Platform => {
   try {
-    const url = new URL(input);
-    const host = url.hostname.replace(/^www\./, '').toLowerCase();
-
+    const host = new URL(input).hostname.replace(/^www\./, '').toLowerCase();
     if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube';
     if (host.includes('instagram.com')) return 'instagram';
     if (host.includes('facebook.com') || host.includes('fb.watch')) return 'facebook';
@@ -362,586 +147,227 @@ const detectPlatform = (input: string): Platform => {
     if (host.includes('douyin.com')) return 'douyin';
     if (host.includes('xiaohongshu.com') || host.includes('xhslink.com')) return 'xiaohongshu';
     return 'other';
-  } catch {
-    return 'unknown';
-  }
+  } catch { return 'unknown'; }
 };
 
-const normalizeTopic = (url: string, title: string, description: string, platform: Platform) => {
-  const cleanTitle = title.trim();
-  const cleanDescription = description.trim();
-
-  if (cleanTitle) return cleanTitle;
-  if (cleanDescription) return cleanDescription.split(/[。！？\n]/)[0]?.trim() || cleanDescription;
-  if (platform !== 'unknown') return `${platformLabels[platform]} 參考影片`;
-  return url.trim() || '短影音主題';
+const metadataPlan = (platform: Platform) => {
+  if (platform === 'youtube') return 'YouTube 優先由後端 API 取得標題、描述、頻道、縮圖與統計；失敗時使用手動補資料。';
+  if (platform === 'instagram' || platform === 'facebook') return 'IG / FB 優先使用 oEmbed / Graph API；受權限限制時保留手動補資料。';
+  if (platform === 'tiktok') return 'TikTok 優先使用 oEmbed；完整資料依 API 權限而定。';
+  if (platform === 'douyin' || platform === 'xiaohongshu') return '抖音與小紅書保留手動補標題、描述與觀察重點，避免反爬與登入限制。';
+  return '可先抓 Open Graph / oEmbed；抓不到就進入手動補資料模式。';
 };
 
-const getMetadataPlan = (platform: Platform) => {
-  if (platform === 'youtube') {
-    return '可接 YouTube Data API，抓標題、描述、頻道、縮圖與統計資料。';
-  }
-
-  if (platform === 'instagram' || platform === 'facebook') {
-    return '可接 Meta oEmbed / Graph API 取得公開內容基本資料；遇到權限限制時需要手動補描述。';
-  }
-
-  if (platform === 'tiktok') {
-    return '可先接 TikTok oEmbed 取得 embed 與基本資訊；完整資料需 Display API 權限。';
-  }
-
-  if (platform === 'douyin' || platform === 'xiaohongshu') {
-    return '平台公開 API 與反爬限制較多，第一版建議用網址辨識 + 手動補標題/描述/截圖。';
-  }
-
-  if (platform === 'other') {
-    return '可先抓 Open Graph / oEmbed / HTML metadata，抓不到就進入手動補資料模式。';
-  }
-
-  return '請貼上完整影片網址，或手動補充影片標題與描述。';
-};
-
-const buildAnalysis = ({
-  url,
-  platform,
-  title,
-  description,
-}: {
-  url: string;
-  platform: Platform;
-  title: string;
-  description: string;
-}): AnalysisResult => {
+const buildFallbackAnalysis = (url: string, title: string, description: string): AnalysisResult => {
+  const platform = detectPlatform(url);
   const platformLabel = platformLabels[platform];
-  const topic = normalizeTopic(url, title, description, platform);
-  const context =
-    description.trim() ||
-    `目前以「${topic}」和 ${platformExamples[platform]} 的常見節奏建立可執行分析。`;
-
-  const confidence: AnalysisResult['confidence'] =
-    platform === 'youtube' ? 'high' : platform === 'unknown' ? 'fallback' : 'medium';
-
+  const topic = title.trim() || description.trim().split(/[。！？\n]/)[0] || (platform === 'unknown' ? '短影音主題' : `${platformLabel} 參考影片`);
+  const short = topic.slice(0, 18);
   const hooks = [
-    `你是不是也遇過「${topic.slice(0, 18)}」但不知道怎麼判斷值不值得？`,
-    `先看這 3 秒，這就是「${topic.slice(0, 14)}」能不能爆的關鍵。`,
-    `同樣是 ${topic.slice(0, 12)}，為什麼有些人一開口就讓人想看完？`,
-    `如果你正在做 ${topic.slice(0, 12)}，這個錯誤先不要犯。`,
+    `你是不是也遇過「${short}」卻不知道哪裡出了問題？`,
+    `先看這 3 秒，這就是「${short}」能不能留住人的關鍵。`,
+    `同樣是 ${short}，為什麼有人一開口就讓人想看完？`,
+    `如果你正在做 ${short}，這個錯誤先不要犯。`,
+    `不用增加預算，先把 ${short} 的第一句改掉。`,
   ];
-
   const storyboard = [
-    `0-3s：用問題或反差畫面開場，字幕直接打出「${topic.slice(0, 14)} 的關鍵不是你想的那樣」。`,
-    `3-6s：快速展示參考影片或主題中的核心情境，讓觀眾知道這和自己有關。`,
-    `6-10s：拆出 2 個可複製元素：開場語氣、畫面節奏、賣點呈現或情緒轉折。`,
-    `10-13s：補一個改寫方向，把原影片靈感轉成你的品牌、商品或服務版本。`,
-    `13-15s：用明確 CTA 收尾，要求留言、點連結、私訊或直接生成同款短影音。`,
+    `0-3s：反差 / 問題 Hook，字幕直打「${short} 的關鍵不是你想的那樣」。`,
+    '3-6s：快速交代痛點與使用情境，讓目標觀眾對號入座。',
+    '6-10s：提供 2 個具體做法或證據，不講抽象口號。',
+    '10-13s：展示改善後結果或可複製範例。',
+    '13-15s：只留一個 CTA：留言、私訊、預約或進入生成影片。',
   ];
-
-  const ctas = [
-    '留言「想要」取得同款腳本',
-    '把這支影片改成你的品牌版本',
-    '上傳 3 張圖片，直接生成 15 秒短影音',
-  ];
-
   return {
-    platform,
-    platformLabel,
-    url,
-    confidence,
-    metadataPlan: getMetadataPlan(platform),
-    strengths: [
-      `主題明確，可直接拆成「吸引注意 -> 建立痛點 -> 給出解法 -> CTA」的 15 秒結構。`,
-      `${platformLabel} 適合用高密度字幕和快速畫面轉場，提高前三秒停留率。`,
-      '分析結果可直接帶入影片生成器，形成「網址/主題 -> Hook -> 分鏡 -> CTA -> MP4」流程。',
-    ],
-    risks: [
-      platform === 'youtube'
-        ? '若未設定 YouTube API key，目前只能做前端辨識與手動補充分析。'
-        : '此平台可能遇到登入、反爬、地區或 API 權限限制，需保留手動補資料流程。',
-      '只貼網址不一定能取得字幕與完整畫面內容，進階版需要轉錄、截圖或使用者上傳素材。',
-      '目前輸出是策略重構，不會下載或複製原影片；商用時仍要注意素材授權。',
-    ],
-    hooks,
-    storyboard,
-    ctas,
-    videoPrompt: [
-      `根據 ${platformLabel} 影片網址分析，重構成一支 15 秒直式短影音。`,
-      `影片網址：${url}`,
-      `主題：${topic}`,
-      `補充描述：${context}`,
-      `Hook：${hooks[0]}`,
-      `分鏡：${storyboard.join(' ')}`,
-      `CTA：${ctas[0]}`,
-    ].join('\n'),
+    platform, platformLabel, url, confidence: platform === 'youtube' ? 'high' : platform === 'unknown' ? 'fallback' : 'medium',
+    metadataPlan: metadataPlan(platform),
+    comparisons: ['痛點開場型：同題材先講失敗原因，再給 3 步解法', '教學型：以實作流程取代產品介紹', '案例證明型：用 Before / After 與結果數字建立信任'],
+    scores: {hook: 4, retention: 4, density: 4, cta: 3, titleScore: 4},
+    strengths: ['主題可直接拆成 15 秒「Hook → 痛點 → 方法 → CTA」。', '可做 3 種開場 A/B 測試，不需要重拍完整影片。', '分析結果可直接接到影片生成器。'],
+    risks: ['只貼網址不一定能取得完整字幕與畫面內容，必要時需補標題 / 描述。', '商用重製前仍須確認圖片、音樂、人物與原始素材授權。'],
+    hooks, storyboard,
+    ctas: ['留言「AI」取得完整腳本', '預約企業 AI / 內容流程健檢', '上傳 3-5 張圖片直接生成 15 秒短影音'],
+    videoPrompt: `主題：${topic}\nHook：${hooks[0]}\n分鏡：${storyboard.join(' ')}\nCTA：預約企業 AI / 內容流程健檢`,
   };
 };
 
-function Home({onCreate, onAnalyze}: {onCreate: () => void; onAnalyze: () => void}) {
-  return (
-    <main className="shell">
-      <section className="hero">
-        <div className="kicker">MoltiAI</div>
-        <h1>貼上影片網址，分析短影音策略</h1>
-        <p>
-          支援 YouTube、IG、FB、TikTok、抖音、小紅書與其他影音網址。先產出 Hook、分鏡、CTA，再接上 15 秒影片生成。
-        </p>
-        <div className="actions">
-          <button className="primary" onClick={onAnalyze}>
-            <Search size={20} />
-            貼網址開始分析
-            <ArrowRight size={18} />
-          </button>
-          <button className="primary" onClick={onCreate}>
-            <FileVideo size={20} />
-            生成 15 秒影片
-          </button>
-        </div>
-      </section>
+const buildReport = (result: AnalysisResult, contact: ContactInfo, title: string, description: string) => `MoltiAI 短影音策略分析報告\n\n一、客戶資料\n公司：${contact.companyName || '未填'}\n聯絡人：${contact.contactName || '未填'}\n電話：${contact.phone || '未填'}\nEmail：${contact.email || '未填'}\n\n二、分析來源\n平台：${result.platformLabel}\n網址：${result.url || '未提供'}\n標題：${title || '未提供'}\n補充：${description || '未提供'}\n可信度：${result.confidence}\n\n三、Metadata / API 策略\n${result.metadataPlan}\n\n四、診斷分數\n${result.scores ? `Hook ${result.scores.hook}/5｜留存 ${result.scores.retention}/5｜密度 ${result.scores.density}/5｜CTA ${result.scores.cta}/5｜標題 ${result.scores.titleScore}/5` : '未量化'}\n\n五、優勢\n${result.strengths.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n六、同題材對照組\n${(result.comparisons || []).map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n七、Hook\n${result.hooks.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n八、15 秒分鏡\n${result.storyboard.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n九、CTA\n${result.ctas.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n十、下一步\n以第一個 Hook 製作 15 秒直式短影音，至少測 3 個開頭版本，並用前三秒停留率、完播率、點擊或詢問率判斷。\n\n--\n瞬影科技 MoltiAI｜www.moltiai.com`;
 
-      <section className="steps">
-        <article>
-          <Link2 size={22} />
-          <h2>1. 貼上影片網址</h2>
-          <p>自動判斷平台，能抓資料就抓，抓不到就引導補標題、描述或截圖。</p>
-        </article>
-        <article>
-          <ClipboardList size={22} />
-          <h2>2. 產生策略分析</h2>
-          <p>輸出優缺點、Hook 變體、分鏡節奏、CTA，以及可生成影片的 prompt。</p>
-        </article>
-        <article>
-          <ArrowRight size={22} />
-          <h2>3. 一鍵生成影片</h2>
-          <p>把分析結果帶進影片生成頁，加入 3-5 張圖片和音樂後輸出 MP4。</p>
-        </article>
-      </section>
-    </main>
-  );
+const escapePdf = (text: string) => text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const downloadSimplePdf = (text: string, filename: string) => {
+  const lines = text.split('\n').flatMap((line) => {
+    const chunks: string[] = [];
+    let s = line;
+    while (s.length > 42) { chunks.push(s.slice(0, 42)); s = s.slice(42); }
+    chunks.push(s); return chunks;
+  });
+  const pageLines = 42;
+  const pages: string[][] = [];
+  for (let i = 0; i < lines.length; i += pageLines) pages.push(lines.slice(i, i + pageLines));
+  const objects: string[] = [];
+  const pageIds: number[] = [];
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  let nextId = 3;
+  pages.forEach((page) => {
+    const contentId = nextId++;
+    const pageId = nextId++;
+    pageIds.push(pageId);
+    const content = `BT /F1 10 Tf 42 800 Td 14 TL ${page.map((line, idx) => `${idx ? 'T* ' : ''}(${escapePdf(line)}) Tj`).join(' ')} ET`;
+    objects[contentId] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents ${contentId} 0 R >>`;
+  });
+  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
+  let pdf = '%PDF-1.4\n'; const offsets: number[] = [0];
+  for (let i = 1; i < objects.length; i++) { offsets[i] = pdf.length; pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`; }
+  const xref = pdf.length; pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  for (let i = 1; i < objects.length; i++) pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const blob = new Blob([pdf], {type: 'application/pdf'}); const href = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = href; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+};
+
+const localAgentOutput = (agent: Agent, prompt: string) => {
+  const now = new Date().toLocaleString('zh-TW');
+  return `【${agent.name}｜${now}】\n\n任務\n${prompt}\n\n建議執行流程\n1. 定義輸入資料與目標成果。\n2. AI 先做研究、整理與草稿。\n3. 依部門規則做品質 / 風險檢查。\n4. 需要核准的動作交由人工確認。\n5. 記錄 KPI，下一輪再優化。\n\n自動化項目\n${agent.automations.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n人工核准\n${agent.approvals.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nKPI 建議\n- 節省工時\n- 產出量 / 回覆速度\n- 錯誤率或轉換率\n- AI 成本與人工覆核時間\n\n下一步\n先用一個高頻、可衡量的流程跑 30 天 Pilot，再決定是否擴大。`;
+};
+
+function IconForAgent({agent}: {agent: Agent}) {
+  const props = {size: 22};
+  if (agent.icon === 'strategy') return <Target {...props} />;
+  if (agent.icon === 'sales') return <BriefcaseBusiness {...props} />;
+  if (agent.icon === 'marketing') return <Megaphone {...props} />;
+  if (agent.icon === 'crm') return <Users {...props} />;
+  if (agent.icon === 'consultant') return <Workflow {...props} />;
+  if (agent.icon === 'training') return <GraduationCap {...props} />;
+  if (agent.icon === 'video') return <Video {...props} />;
+  return <CircleDollarSign {...props} />;
 }
 
-function AnalyzeUrl({
-  onBack,
-  onGenerate,
-}: {
-  onBack: () => void;
-  onGenerate: (prompt: string) => void;
-}) {
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [contact, setContact] = useState<ContactInfo>(emptyContact);
-  const [copyStatus, setCopyStatus] = useState('');
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [error, setError] = useState('');
+function Sidebar({view, setView}: {view: View; setView: (v: View) => void}) {
+  const items: Array<[View, string, React.ReactNode]> = [
+    ['dashboard', 'Workspace 首頁', <LayoutDashboard size={18} />],
+    ['agents', 'AI Agent 組織', <Bot size={18} />],
+    ['management', '管理 / 自動化', <Settings2 size={18} />],
+    ['analyze', '影片分析 / PDF 報告', <Search size={18} />],
+    ['create', '腳本 / 15 秒影片', <FileVideo size={18} />],
+    ['video-factory', 'Video Factory 首頁', <Video size={18} />],
+  ];
+  return <aside className="sidebar">
+    <div className="brand"><div className="brandMark">M</div><div><strong>MoltiAI</strong><span>Enterprise AI Workspace</span></div></div>
+    <nav>{items.map(([id, label, icon]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>{icon}<span>{label}</span></button>)}</nav>
+    <div className="sidebarNote"><ShieldCheck size={18} /><span>AI 先做研究與草稿；高風險動作保留人工核准。</span></div>
+  </aside>;
+}
 
-  const platform = detectPlatform(url);
-  const canAnalyze = url.trim().length >= 4 || title.trim().length >= 2 || description.trim().length >= 4;
-  const report = result
-    ? buildStrategyReport({
-        result,
-        contact,
-        sourceUrl: url,
-        sourceTitle: title,
-        sourceDescription: description,
-      })
-    : '';
+function Dashboard({setView, runs}: {setView: (v: View) => void; runs: AgentRun[]}) {
+  return <main className="workspacePage">
+    <header className="pageHeader"><div><span className="eyebrow">MOLTIAI AI-NATIVE COMPANY</span><h1>瞬影科技 AI 組織營運台</h1><p>把業務、行銷、顧問、培訓、影音與財務拆成可審核的 AI 工作流程。</p></div><button className="primary" onClick={() => setView('agents')}><Bot size={18}/>開啟 Agent</button></header>
+    <section className="metrics">
+      <article><Bot/><strong>{agents.length}</strong><span>部門 Agents</span></article>
+      <article><Play/><strong>{runs.length}</strong><span>已執行任務</span></article>
+      <article><UserRoundCheck/><strong>100%</strong><span>高風險人工核准</span></article>
+      <article><BarChart3/><strong>30 日</strong><span>Pilot 驗證週期</span></article>
+    </section>
+    <section className="sectionBlock"><div className="sectionTitle"><div><h2>公司部門 AI Organization</h2><p>展示給上市櫃公司看的核心架構：Human Decision + AI Workforce + Enterprise Systems。</p></div></div>
+      <div className="agentGrid">{agents.map((agent) => <article className="agentCard" key={agent.id}><div className="agentIcon"><IconForAgent agent={agent}/></div><div className="agentDept">{departmentLabels[agent.department]}</div><h3>{agent.name}</h3><p>{agent.mission}</p><button onClick={() => setView('agents')}>查看與執行 <ArrowRight size={16}/></button></article>)}</div>
+    </section>
+    <section className="sectionBlock"><div className="sectionTitle"><div><h2>內容與 AI 影音</h2><p>以下功能保留為既有 Video Factory 的核心能力。</p></div></div>
+      <div className="quickGrid"><button onClick={() => setView('analyze')}><Search/><strong>Analyze URL</strong><span>影片網址 → Hook / 分鏡 / CTA / PDF</span></button><button onClick={() => setView('create')}><FileVideo/><strong>腳本 / 15 秒影片</strong><span>Prompt + 3–5 張圖 → MP4</span></button><button onClick={() => setView('video-factory')}><Video/><strong>Video Factory 首頁</strong><span>從分析到生成的完整流程</span></button></div>
+    </section>
+  </main>;
+}
 
-  const updateContact = (field: keyof ContactInfo, value: string) => {
-    setContact((current) => ({...current, [field]: value}));
-  };
-
-  const copyReport = async () => {
-    if (!report) return;
-
+function AgentsPage({runs, setRuns}: {runs: AgentRun[]; setRuns: React.Dispatch<React.SetStateAction<AgentRun[]>>}) {
+  const [selected, setSelected] = useState(agents[0]);
+  const [prompt, setPrompt] = useState(agents[0].samplePrompt);
+  const [loading, setLoading] = useState(false);
+  const [output, setOutput] = useState('');
+  const choose = (agent: Agent) => { setSelected(agent); setPrompt(agent.samplePrompt); setOutput(''); };
+  const run = async () => {
+    if (!prompt.trim()) return; setLoading(true); setOutput('');
+    let text = ''; let mode: AgentRun['mode'] = 'AI';
     try {
-      await navigator.clipboard.writeText(report);
-      setCopyStatus('已複製策略報告');
+      const res = await fetch('/api/agents/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({agentId: selected.id, agentName: selected.name, prompt})});
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json() as {output?: string; text?: string}; text = data.output || data.text || '';
+      if (!text) throw new Error('AI 沒有回傳內容');
     } catch {
-      setCopyStatus('瀏覽器不允許自動複製，請手動選取報告文字');
+      mode = 'fallback'; text = localAgentOutput(selected, prompt);
     }
+    const item: AgentRun = {id: crypto.randomUUID(), agentId: selected.id, agentName: selected.name, prompt, output: text, createdAt: new Date().toISOString(), mode};
+    setRuns((current) => [item, ...current].slice(0, 50)); setOutput(text); setLoading(false);
   };
+  return <main className="workspacePage"><header className="pageHeader"><div><span className="eyebrow">AI WORKFORCE</span><h1>AI Agent 組織</h1><p>每個 Agent 都有自動化工作、人工核准點與可衡量 KPI。</p></div></header>
+    <div className="agentWorkspace"><section className="agentList">{agents.map((a) => <button key={a.id} className={selected.id === a.id ? 'selected' : ''} onClick={() => choose(a)}><span className="agentIcon small"><IconForAgent agent={a}/></span><span><strong>{a.name}</strong><small>{a.title}</small></span></button>)}</section>
+      <section className="agentDetail"><div className="detailHero"><div className="agentIcon"><IconForAgent agent={selected}/></div><div><span>{departmentLabels[selected.department]}</span><h2>{selected.name}</h2><p>{selected.mission}</p></div></div>
+        <div className="twoCols"><div><h3>可自動化</h3><ul>{selected.automations.map((x) => <li key={x}><CheckCircle2 size={16}/>{x}</li>)}</ul></div><div><h3>必須人工核准</h3><ul>{selected.approvals.map((x) => <li key={x}><ShieldCheck size={16}/>{x}</li>)}</ul></div></div>
+        <label className="taskBox"><span>交給 Agent 的任務</span><textarea value={prompt} onChange={(e) => setPrompt(e.target.value)}/><button className="primary" disabled={loading || !prompt.trim()} onClick={run}><Sparkles size={18}/>{loading ? '執行中...' : '執行 Agent'}</button></label>
+        {output && <div className="outputBox"><div className="outputHeader"><h3>Agent 輸出</h3><button onClick={() => navigator.clipboard.writeText(output)}>複製</button></div><pre>{output}</pre></div>}
+      </section>
+    </div>
+    {runs.length > 0 && <section className="sectionBlock"><div className="sectionTitle"><h2>最近執行</h2></div><div className="runList">{runs.slice(0, 8).map((r) => <article key={r.id}><div><strong>{r.agentName}</strong><span>{new Date(r.createdAt).toLocaleString('zh-TW')} · {r.mode}</span></div><p>{r.prompt}</p></article>)}</div></section>}
+  </main>;
+}
 
-  const downloadReport = async () => {
-    if (!report) return;
+function ManagementPage({runs}: {runs: AgentRun[]}) {
+  return <main className="workspacePage"><header className="pageHeader"><div><span className="eyebrow">AUTOMATION & GOVERNANCE</span><h1>管理 / 自動化</h1><p>用部門、Workflow、Approval、KPI 四層管理 AI，而不是只管理 Prompt。</p></div></header>
+    <section className="sectionBlock"><div className="flow"><div><strong>1. Trigger</strong><span>Email / 表單 / 行程 / 手動</span></div><ArrowRight/><div><strong>2. AI Process</strong><span>研究 / 分析 / 草稿</span></div><ArrowRight/><div><strong>3. Human Approval</strong><span>風險與品質核准</span></div><ArrowRight/><div><strong>4. Action</strong><span>寄送 / CRM / 發布 / 交付</span></div><ArrowRight/><div><strong>5. KPI</strong><span>工時 / 品質 / ROI</span></div></div></section>
+    <section className="sectionBlock"><div className="sectionTitle"><div><h2>部門自動化藍圖</h2><p>高風險流程不做無人監督自動執行。</p></div></div><div className="automationTable"><div className="tableHead"><span>部門</span><span>Agent</span><span>自動化</span><span>人工核准</span></div>{agents.map((a) => <div className="tableRow" key={a.id}><span>{departmentLabels[a.department]}</span><span>{a.name}</span><span>{a.automations.slice(0, 3).join('、')}</span><span>{a.approvals.join('、')}</span></div>)}</div></section>
+    <section className="sectionBlock"><div className="sectionTitle"><h2>執行紀錄</h2></div><p className="muted">目前瀏覽器已保存 {runs.length} 筆 Agent 任務紀錄；正式企業版可再接 CRM、資料庫、權限與 Audit Log。</p></section>
+  </main>;
+}
 
-    try {
-      setCopyStatus('正在產生 PDF...');
-      const pdf = await renderReportPdf(report);
-      const pdfUrl = URL.createObjectURL(pdf);
-      const link = document.createElement('a');
-      link.href = pdfUrl;
-      link.download = `moltiai-strategy-report-${sanitizeFilename(contact.companyName)}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(pdfUrl);
-      setCopyStatus('PDF 已開始下載');
-    } catch (pdfError) {
-      setCopyStatus(pdfError instanceof Error ? pdfError.message : 'PDF 產生失敗，請稍候再試');
-    }
-  };
-
+function AnalyzeUrl({onBack, onGenerate}: {onBack: () => void; onGenerate: (prompt: string) => void}) {
+  const [url, setUrl] = useState(''); const [title, setTitle] = useState(''); const [description, setDescription] = useState('');
+  const [contact, setContact] = useState<ContactInfo>(emptyContact); const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle'); const [error, setError] = useState('');
+  const canAnalyze = url.trim().length >= 4 || title.trim().length >= 2 || description.trim().length >= 4;
   const analyze = async () => {
-    if (!canAnalyze) return;
-    setStatus('loading');
-    setError('');
-
+    if (!canAnalyze) return; setStatus('loading'); setError('');
     try {
-      const response = await fetch(`${workerUrl}/analyze`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({url, title, description}),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const data = (await response.json()) as AnalysisResult;
-      setResult(data);
-      setStatus('idle');
-    } catch (analysisError) {
-      setResult(buildAnalysis({url, platform, title, description}));
-      setStatus('error');
-      setError(
-        analysisError instanceof Error
-          ? `已改用本地策略分析。後端暫時無法抓取資料：${analysisError.message}`
-          : '已改用本地策略分析。後端暫時無法抓取資料。'
-      );
+      const response = await fetch(`${workerUrl}/analyze`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url, title, description})});
+      if (!response.ok) throw new Error(await response.text());
+      setResult(await response.json() as AnalysisResult); setStatus('idle');
+    } catch (e) {
+      setResult(buildFallbackAnalysis(url, title, description)); setStatus('error'); setError(e instanceof Error ? `後端暫時無法取得資料，已改用本地策略分析：${e.message}` : '已改用本地策略分析');
     }
   };
-
-  return (
-    <main className="shell">
-      <section className="header">
-        <button className="textButton" onClick={onBack}>
-          回首頁
-        </button>
-        <div className="kicker">Analyze URL</div>
-        <h1>貼上影片網址，自動產生短影音策略</h1>
-        <p>YouTube 可優先接 API；IG、FB、TikTok 用 oEmbed；抖音與小紅書保留手動補資料。</p>
-      </section>
-
-      <section className="grid">
-        <div className="form">
-          <div className="formGroup">
-            <h2>客戶資料</h2>
-            <label>
-              對方公司名稱
-              <input
-                value={contact.companyName}
-                onChange={(event) => updateContact('companyName', event.target.value)}
-                placeholder="例如：ABC 美學診所 / XX 餐飲品牌"
-              />
-            </label>
-            <label>
-              聯絡人姓名
-              <input
-                value={contact.contactName}
-                onChange={(event) => updateContact('contactName', event.target.value)}
-                placeholder="例如：王小姐"
-              />
-            </label>
-            <div className="twoFields">
-              <label>
-                電話
-                <input
-                  value={contact.phone}
-                  onChange={(event) => updateContact('phone', event.target.value)}
-                  placeholder="手機或公司電話"
-                />
-              </label>
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={contact.email}
-                  onChange={(event) => updateContact('email', event.target.value)}
-                  placeholder="client@example.com"
-                />
-              </label>
-            </div>
-          </div>
-          <label>
-            影片網址
-            <input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="貼影片網址，或直接輸入主題文字"
-            />
-            <span className="hint">目前辨識：{platformLabels[platform]}</span>
-          </label>
-
-          <label>
-            影片標題，可選填
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="抓不到 metadata 時可手動補充"
-            />
-          </label>
-
-          <label>
-            影片描述 / 觀察重點，可選填
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="例：前三秒用了反差開場，中段展示產品效果，最後引導留言..."
-            />
-          </label>
-
-          <button disabled={!canAnalyze || status === 'loading'} onClick={analyze}>
-            <Search size={20} />
-            {status === 'loading' ? '分析中...' : '產生 Hook / 分鏡 / CTA'}
-          </button>
-        </div>
-
-        <aside className="preview widePreview">
-          <h2>分析結果</h2>
-          {error ? <p className="error">{error}</p> : null}
-          {!result ? (
-            <p>貼上網址後會在這裡產生平台判斷、資料取得策略、Hook、分鏡與 CTA。</p>
-          ) : (
-            <div className="analysis">
-              <div className={`badge ${result.confidence}`}>{result.platformLabel}</div>
-              <p>{result.metadataPlan}</p>
-
-              {result.comparisons?.length ? (
-                <>
-                  <h3>同題材對照組</h3>
-                  <ol>{result.comparisons.map((item) => <li key={item}>{item}</li>)}</ol>
-                </>
-              ) : null}
-
-              {result.scores ? (
-                <>
-                  <h3>診斷分數</h3>
-                  <ul>
-                    <li>Hook：{result.scores.hook}/5</li>
-                    <li>留存節奏：{result.scores.retention}/5</li>
-                    <li>資訊密度：{result.scores.density}/5</li>
-                    <li>CTA：{result.scores.cta}/5</li>
-                    <li>標題吸引力：{result.scores.titleScore}/5</li>
-                  </ul>
-                </>
-              ) : null}
-
-              <h3>優勢</h3>
-              <ul>{result.strengths.map((item) => <li key={item}>{item}</li>)}</ul>
-
-              <h3>Hook 變體</h3>
-              <ol>{result.hooks.map((item) => <li key={item}>{item}</li>)}</ol>
-
-              <h3>15 秒分鏡</h3>
-              <ol>{result.storyboard.map((item) => <li key={item}>{item}</li>)}</ol>
-
-              <h3>CTA</h3>
-              <ul>{result.ctas.map((item) => <li key={item}>{item}</li>)}</ul>
-
-              <button className="inlineAction" onClick={() => onGenerate(result.videoPrompt)}>
-                <FileVideo size={18} />
-                用這份分析生成影片
-              </button>
-
-              <div className="reportBox">
-                <div className="reportHeader">
-                  <h3>策略建議報告</h3>
-                  <div className="reportActions">
-                    <button type="button" className="miniButton" onClick={copyReport}>
-                      複製
-                    </button>
-                    <button type="button" className="miniButton" onClick={downloadReport}>
-                      下載 PDF
-                    </button>
-                  </div>
-                </div>
-                {copyStatus ? <p className="hint">{copyStatus}</p> : null}
-                <pre className="reportText">{report}</pre>
-              </div>
-            </div>
-          )}
-        </aside>
-      </section>
-    </main>
-  );
+  const report = result ? buildReport(result, contact, title, description) : '';
+  return <main className="workspacePage"><header className="pageHeader compact"><button className="backButton" onClick={onBack}><ChevronLeft size={18}/>回 Workspace</button><div><span className="eyebrow">ANALYZE URL</span><h1>貼上影片網址，自動產生短影音策略</h1><p>YouTube 可優先接 API；IG、FB、TikTok 用 oEmbed；抖音與小紅書保留手動補資料。</p></div></header>
+    <div className="contentGrid"><section className="formCard"><h2>客戶與來源</h2><div className="twoInputs"><label>公司<input value={contact.companyName} onChange={(e) => setContact({...contact, companyName: e.target.value})}/></label><label>聯絡人<input value={contact.contactName} onChange={(e) => setContact({...contact, contactName: e.target.value})}/></label></div><div className="twoInputs"><label>電話<input value={contact.phone} onChange={(e) => setContact({...contact, phone: e.target.value})}/></label><label>Email<input value={contact.email} onChange={(e) => setContact({...contact, email: e.target.value})}/></label></div><label>影片網址<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="YouTube / IG / FB / TikTok / 抖音 / 小紅書"/><small>辨識：{platformLabels[detectPlatform(url)]}</small></label><label>影片標題，可選填<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="抓不到 metadata 時手動補充"/></label><label>影片描述 / 觀察重點，可選填<textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="內容重點、前三秒、CTA、產品資訊..."/></label><button className="primary" disabled={!canAnalyze || status === 'loading'} onClick={analyze}><Search size={18}/>{status === 'loading' ? '分析中...' : '產生 Hook / 分鏡 / CTA'}</button></section>
+      <section className="resultCard"><h2>分析結果</h2>{error && <p className="error">{error}</p>}{!result ? <div className="emptyState"><Search/><p>貼上影片網址後，這裡會顯示平台判斷、策略、對照組、Hook、分鏡、CTA 與 PDF。</p></div> : <div className="analysis"><span className={`confidence ${result.confidence}`}>{result.platformLabel} · {result.confidence}</span><p>{result.metadataPlan}</p>{result.scores && <div className="scoreGrid"><span>Hook <strong>{result.scores.hook}/5</strong></span><span>留存 <strong>{result.scores.retention}/5</strong></span><span>密度 <strong>{result.scores.density}/5</strong></span><span>CTA <strong>{result.scores.cta}/5</strong></span></div>}<h3>同題材對照組</h3><ol>{result.comparisons?.map((x) => <li key={x}>{x}</li>)}</ol><h3>Hook</h3><ol>{result.hooks.map((x) => <li key={x}>{x}</li>)}</ol><h3>15 秒分鏡</h3><ol>{result.storyboard.map((x) => <li key={x}>{x}</li>)}</ol><h3>CTA</h3><ul>{result.ctas.map((x) => <li key={x}>{x}</li>)}</ul><div className="actionRow"><button className="primary" onClick={() => onGenerate(result.videoPrompt)}><FileVideo size={17}/>用分析生成影片</button><button onClick={() => navigator.clipboard.writeText(report)}><ClipboardList size={17}/>複製報告</button><button onClick={() => downloadSimplePdf(report, `moltiai-strategy-${contact.companyName || 'report'}.pdf`)}><FileText size={17}/>下載 PDF</button></div></div>}</section></div>
+  </main>;
 }
 
 function CreateVideo({onBack, initialPrompt}: {onBack: () => void; initialPrompt: string}) {
-  const [prompt, setPrompt] = useState(initialPrompt);
-  const [cta, setCta] = useState('立即了解');
-  const [musicMode, setMusicMode] = useState<'auto' | 'upload' | 'none'>('auto');
-  const [images, setImages] = useState<FileList | null>(null);
-  const [music, setMusic] = useState<File | null>(null);
-  const [result, setResult] = useState<RenderResult>({status: 'idle'});
-
-  const imageCount = images?.length ?? 0;
-  const canSubmit = prompt.trim().length > 8 && imageCount >= 3 && imageCount <= 5;
-
-  const helperText = useMemo(() => {
-    if (imageCount === 0) return '請上傳 3-5 張圖片。';
-    if (imageCount < 3) return `目前 ${imageCount} 張，至少需要 3 張。`;
-    if (imageCount > 5) return `目前 ${imageCount} 張，最多只能 5 張。`;
-    return `已選 ${imageCount} 張圖片。`;
-  }, [imageCount]);
-
+  const [prompt, setPrompt] = useState(initialPrompt); const [cta, setCta] = useState('立即了解'); const [musicMode, setMusicMode] = useState<'auto' | 'upload' | 'none'>('auto');
+  const [images, setImages] = useState<FileList | null>(null); const [music, setMusic] = useState<File | null>(null); const [result, setResult] = useState<RenderResult>({status: 'idle'});
+  const imageCount = images?.length ?? 0; const canSubmit = prompt.trim().length > 8 && imageCount >= 3 && imageCount <= 5;
+  const helper = useMemo(() => imageCount === 0 ? '請上傳 3-5 張圖片。' : imageCount < 3 ? `目前 ${imageCount} 張，至少 3 張。` : imageCount > 5 ? `目前 ${imageCount} 張，最多 5 張。` : `已選 ${imageCount} 張圖片。`, [imageCount]);
   const submit = async () => {
-    if (!canSubmit || !images) return;
-
-    setResult({status: 'submitting', message: '正在送出影片生成任務...'});
-    const formData = new FormData();
-    formData.set('prompt', prompt);
-    formData.set('cta', cta);
-    formData.set('musicMode', musicMode);
-
-    Array.from(images).forEach((image) => {
-      formData.append('images', image);
-    });
-
-    if (musicMode === 'upload' && music) {
-      formData.set('music', music);
-    }
-
-    try {
-      const response = await fetch(`${workerUrl}/render`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const data = (await response.json()) as {videoUrl: string};
-      setResult({status: 'ready', videoUrl: data.videoUrl});
-    } catch (error) {
-      setResult({
-        status: 'error',
-        message: error instanceof Error ? error.message : '影片生成失敗',
-      });
-    }
+    if (!canSubmit || !images) return; setResult({status: 'submitting', message: '正在送出影片生成任務...'});
+    const form = new FormData(); form.set('prompt', prompt); form.set('cta', cta); form.set('musicMode', musicMode); Array.from(images).forEach((img) => form.append('images', img)); if (musicMode === 'upload' && music) form.set('music', music);
+    try { const res = await fetch(`${workerUrl}/render`, {method: 'POST', body: form}); if (!res.ok) throw new Error(await res.text()); const data = await res.json() as {videoUrl: string}; setResult({status: 'ready', videoUrl: data.videoUrl}); }
+    catch (e) { setResult({status: 'error', message: e instanceof Error ? e.message : '影片生成失敗'}); }
   };
+  return <main className="workspacePage"><header className="pageHeader compact"><button className="backButton" onClick={onBack}><ChevronLeft size={18}/>回 Workspace</button><div><span className="eyebrow">SCRIPT / 15S VIDEO</span><h1>把策略與腳本變成 15 秒短影音</h1><p>保留既有 3-5 張圖片、CTA、音樂與 MP4 生成流程。</p></div></header><div className="contentGrid"><section className="formCard"><label>影片描述 / Script<textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="可從 Analyze URL 一鍵帶入"/></label><label>CTA<input value={cta} onChange={(e) => setCta(e.target.value)}/></label><label>圖片素材<div className="fileBox"><Upload size={20}/><input type="file" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => setImages(e.target.files)}/></div><small>{helper}</small></label><label>音樂<select value={musicMode} onChange={(e) => setMusicMode(e.target.value as typeof musicMode)}><option value="auto">自動音樂</option><option value="upload">上傳音樂</option><option value="none">不要音樂</option></select></label>{musicMode === 'upload' && <label>音樂檔案<div className="fileBox"><Music size={20}/><input type="file" accept="audio/*" onChange={(e) => setMusic(e.target.files?.[0] ?? null)}/></div></label>}<button className="primary" disabled={!canSubmit || result.status === 'submitting'} onClick={submit}><WandSparkles size={18}/>{result.status === 'submitting' ? '生成中...' : '生成 15 秒影片'}</button></section><section className="resultCard"><h2>影片預覽</h2>{result.status === 'idle' && <div className="emptyState"><Video/><p>完成腳本與素材後，影片會顯示在這裡。</p></div>}{result.status === 'submitting' && <p>{result.message}</p>}{result.status === 'error' && <p className="error">{result.message}</p>}{result.status === 'ready' && result.videoUrl && <><video className="video" src={result.videoUrl} controls playsInline/><a className="downloadLink" href={result.videoUrl} download>下載 MP4</a></>}</section></div></main>;
+}
 
-  return (
-    <main className="shell">
-      <section className="header">
-        <button className="textButton" onClick={onBack}>
-          回首頁
-        </button>
-        <div className="kicker">Create Video</div>
-        <h1>把診斷結果變成 15 秒短影音</h1>
-        <p>貼上 Hook / 分鏡 / CTA，加入 3-5 張圖片，再選音樂來源。</p>
-      </section>
-
-      <section className="grid">
-        <div className="form">
-          <label>
-            影片描述
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="例：根據這份短影音診斷，做一支 15 秒影片。Hook 是..."
-            />
-          </label>
-
-          <label>
-            CTA
-            <input value={cta} onChange={(event) => setCta(event.target.value)} />
-          </label>
-
-          <label>
-            圖片素材
-            <div className="fileBox">
-              <Upload size={20} />
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                multiple
-                onChange={(event) => setImages(event.target.files)}
-              />
-            </div>
-            <span className="hint">{helperText}</span>
-          </label>
-
-          <label>
-            音樂
-            <select
-              value={musicMode}
-              onChange={(event) => setMusicMode(event.target.value as typeof musicMode)}
-            >
-              <option value="auto">自動音樂</option>
-              <option value="upload">上傳音樂</option>
-              <option value="none">不要音樂</option>
-            </select>
-          </label>
-
-          {musicMode === 'upload' ? (
-            <label>
-              音樂檔案
-              <div className="fileBox">
-                <Music size={20} />
-                <input
-                  type="file"
-                  accept="audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg"
-                  onChange={(event) => setMusic(event.target.files?.[0] ?? null)}
-                />
-              </div>
-            </label>
-          ) : null}
-
-          <button disabled={!canSubmit || result.status === 'submitting'} onClick={submit}>
-            <WandSparkles size={20} />
-            生成影片
-          </button>
-        </div>
-
-        <aside className="preview">
-          <h2>輸出預覽</h2>
-          {result.status === 'idle' ? <p>送出後，完成的 MP4 會顯示在這裡。</p> : null}
-          {result.status === 'submitting' ? <p>{result.message}</p> : null}
-          {result.status === 'error' ? <p className="error">{result.message}</p> : null}
-          {result.status === 'ready' && result.videoUrl ? (
-            <>
-              <video src={result.videoUrl} controls playsInline className="video" />
-              <a href={result.videoUrl} download>
-                下載 MP4
-              </a>
-            </>
-          ) : null}
-        </aside>
-      </section>
-    </main>
-  );
+function VideoFactory({setView}: {setView: (v: View) => void}) {
+  return <main className="workspacePage"><header className="pageHeader"><div><span className="eyebrow">VIDEO FACTORY</span><h1>內容與 AI 影音生產線</h1><p>保留原本的影片分析與生成功能，並把它正式掛在 Content / Video Agent 底下。</p></div></header><section className="factoryFlow"><button onClick={() => setView('analyze')}><span>01</span><Search/><strong>Analyze URL</strong><p>影片網址 → metadata / fallback → 策略分析</p></button><ArrowRight/><button onClick={() => setView('analyze')}><span>02</span><ClipboardList/><strong>策略 / PDF</strong><p>Hook、對照組、分鏡、CTA、報告</p></button><ArrowRight/><button onClick={() => setView('create')}><span>03</span><FileVideo/><strong>腳本 / 15 秒影片</strong><p>Prompt + 3–5 張圖 + 音樂</p></button><ArrowRight/><button><span>04</span><UserRoundCheck/><strong>人工審核</strong><p>品牌、事實、版權與 CTA</p></button></section><section className="sectionBlock"><div className="sectionTitle"><div><h2>平台資料取得策略</h2><p>這是必須保留的 Analyze URL 規則。</p></div></div><div className="platformGrid"><article><strong>YouTube</strong><p>優先接 API；抓不到時 fallback。</p></article><article><strong>IG / FB</strong><p>oEmbed / Graph API，受限時手動補。</p></article><article><strong>TikTok</strong><p>oEmbed 優先，完整資料視權限。</p></article><article><strong>抖音 / 小紅書</strong><p>保留手動補資料，避免反爬風險。</p></article></div></section></main>;
 }
 
 function App() {
-  const [view, setView] = useState<'home' | 'analyze' | 'create'>('home');
-  const [initialPrompt, setInitialPrompt] = useState('');
-
-  if (view === 'analyze') {
-    return (
-      <AnalyzeUrl
-        onBack={() => setView('home')}
-        onGenerate={(prompt) => {
-          setInitialPrompt(prompt);
-          setView('create');
-        }}
-      />
-    );
-  }
-
-  if (view === 'create') {
-    return <CreateVideo onBack={() => setView('home')} initialPrompt={initialPrompt} />;
-  }
-
-  return (
-    <Home
-      onAnalyze={() => setView('analyze')}
-      onCreate={() => {
-        setInitialPrompt('');
-        setView('create');
-      }}
-    />
-  );
+  const [view, setView] = useState<View>('dashboard'); const [initialPrompt, setInitialPrompt] = useState('');
+  const [runs, setRuns] = useState<AgentRun[]>(() => { try { return JSON.parse(localStorage.getItem('moltiai-agent-runs') || '[]'); } catch { return []; } });
+  useEffect(() => { localStorage.setItem('moltiai-agent-runs', JSON.stringify(runs)); }, [runs]);
+  let page: React.ReactNode;
+  if (view === 'dashboard') page = <Dashboard setView={setView} runs={runs}/>;
+  else if (view === 'agents') page = <AgentsPage runs={runs} setRuns={setRuns}/>;
+  else if (view === 'management') page = <ManagementPage runs={runs}/>;
+  else if (view === 'analyze') page = <AnalyzeUrl onBack={() => setView('dashboard')} onGenerate={(p) => {setInitialPrompt(p); setView('create');}}/>;
+  else if (view === 'create') page = <CreateVideo onBack={() => setView('dashboard')} initialPrompt={initialPrompt}/>;
+  else page = <VideoFactory setView={setView}/>;
+  return <div className="appShell"><Sidebar view={view} setView={setView}/><div className="mainArea">{page}</div></div>;
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(<App/>);
