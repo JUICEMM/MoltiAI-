@@ -8,6 +8,15 @@ const cleanQuery = (value = '') => String(value)
   .trim()
   .slice(0, 90);
 
+const deriveQuery = (value = '') => {
+  const title = cleanQuery(value);
+  if (/創業|10\s*億|十億|商業|營收|公司|賺錢/.test(title)) return '創業 從0到1 商業模式 成長 成功';
+  if (/SEO|搜尋|排名|網站|流量/.test(title)) return 'SEO 搜尋排名 流量 客戶 轉換';
+  if (/AI|人工智慧|ChatGPT|生成式/.test(title)) return '生成式 AI 企業 導入 自動化 工作流程';
+  if (/短影音|影片|Reels|TikTok|YouTube/.test(title)) return '短影音 行銷 Hook 留存 轉換';
+  return title.split(/[？?！!：:，,。]/).filter(Boolean).slice(0, 2).join(' ').slice(0, 60) || '商業 成長 方法';
+};
+
 const extractVideoId = (value = '') => {
   const text = String(value || '');
   const match = text.match(/(?:v=|youtu\.be\/|shorts\/)([A-Za-z0-9_-]{11})/) || text.match(/^([A-Za-z0-9_-]{11})$/);
@@ -28,13 +37,7 @@ const strategyFromTitle = (title = '') => {
   const story = /我|案例|實戰|從.*到|成功|失敗|真實|創業/.test(title);
   const angle = numeric ? '成果／數字承諾型' : how ? '問題解法／教學型' : story ? '人物案例／成長敘事型' : '同題材觀點型';
   const hook = numeric ? '先用具體數字或結果建立期待，再揭露方法。' : how ? '前三秒直接提出問題或反常識答案。' : story ? '先交代結果或轉折，再回推過程。' : '先講觀眾最在意的結果，再補原因。';
-  return {
-    angle,
-    hook,
-    structure: '結果／問題 → 關鍵觀點 → 2–3 個做法或證據 → CTA',
-    takeaway: '借鏡標題承諾與前三秒切入，但不要照抄原句；應保留自己的案例與證據。',
-    differentiation: '把長內容拆成單一痛點、單一證據、單一 CTA 的 15–30 秒版本。',
-  };
+  return {angle, hook, structure: '結果／問題 → 關鍵觀點 → 2–3 個做法或證據 → CTA', takeaway: '借鏡標題承諾與前三秒切入，但不要照抄原句；應保留自己的案例與證據。', differentiation: '把長內容拆成單一痛點、單一證據、單一 CTA 的 15–30 秒版本。'};
 };
 
 const youtubeOEmbed = async (videoId) => {
@@ -56,7 +59,7 @@ const sourceMetadata = async (source) => {
   return meta ? {...meta, id} : {id, title: '', channel: ''};
 };
 
-const fallbackSearch = async (query, excludeId) => {
+const fallbackSearch = async (query, excludeId, excludeChannel = '') => {
   const url = new URL('https://www.youtube.com/results');
   url.searchParams.set('search_query', query);
   url.searchParams.set('hl', 'zh-TW');
@@ -66,35 +69,25 @@ const fallbackSearch = async (query, excludeId) => {
   const ids = [];
   const re = /"videoId":"([A-Za-z0-9_-]{11})"/g;
   let m;
-  while ((m = re.exec(html)) && ids.length < 18) {
+  while ((m = re.exec(html)) && ids.length < 24) {
     if (m[1] !== excludeId && !ids.includes(m[1])) ids.push(m[1]);
   }
   const verified = [];
   for (const id of ids) {
     const meta = await youtubeOEmbed(id);
     if (!meta?.title || !meta?.channel) continue;
+    if (excludeChannel && meta.channel.trim().toLowerCase() === excludeChannel.trim().toLowerCase()) continue;
     verified.push({id, ...meta});
     if (verified.length >= 3) break;
   }
-  return verified.map((x) => ({
-    title: x.title,
-    channel: x.channel,
-    url: `https://www.youtube.com/watch?v=${x.id}`,
-    views: null,
-    likes: null,
-    comments: null,
-    publishedAt: '',
-    viewSignal: '已驗證公開 YouTube 影片；觀看數需 YouTube Data API 才能穩定取得',
-    sourceMode: 'youtube-web+oembed',
-    ...strategyFromTitle(x.title),
-  }));
+  return verified.map((x) => ({title: x.title, channel: x.channel, url: `https://www.youtube.com/watch?v=${x.id}`, views: null, likes: null, comments: null, publishedAt: '', viewSignal: '已驗證公開 YouTube 影片；觀看數需 YouTube Data API 才能穩定取得', sourceMode: 'youtube-web+oembed', ...strategyFromTitle(x.title)}));
 };
 
-const apiSearch = async (apiKey, query, excludeId) => {
+const apiSearch = async (apiKey, query, excludeId, excludeChannel = '') => {
   const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search');
   searchUrl.searchParams.set('part', 'snippet');
   searchUrl.searchParams.set('type', 'video');
-  searchUrl.searchParams.set('maxResults', '10');
+  searchUrl.searchParams.set('maxResults', '12');
   searchUrl.searchParams.set('order', 'relevance');
   searchUrl.searchParams.set('q', query);
   searchUrl.searchParams.set('key', apiKey);
@@ -102,9 +95,8 @@ const apiSearch = async (apiKey, query, excludeId) => {
   const searchResp = await fetch(searchUrl);
   if (!searchResp.ok) throw new Error(`YouTube search ${searchResp.status}`);
   const searchData = await searchResp.json();
-  const ids = (searchData.items || []).map((x) => x.id?.videoId).filter(Boolean).filter((id) => id !== excludeId).slice(0, 8);
+  const ids = (searchData.items || []).filter((x) => !excludeChannel || x.snippet?.channelTitle?.trim().toLowerCase() !== excludeChannel.trim().toLowerCase()).map((x) => x.id?.videoId).filter(Boolean).filter((id) => id !== excludeId).slice(0, 8);
   if (!ids.length) return [];
-
   const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
   videosUrl.searchParams.set('part', 'snippet,statistics');
   videosUrl.searchParams.set('id', ids.join(','));
@@ -112,18 +104,7 @@ const apiSearch = async (apiKey, query, excludeId) => {
   const videosResp = await fetch(videosUrl);
   if (!videosResp.ok) throw new Error(`YouTube videos ${videosResp.status}`);
   const videosData = await videosResp.json();
-  return (videosData.items || []).slice(0, 3).map((item) => ({
-    title: item.snippet?.title || '未命名影片',
-    channel: item.snippet?.channelTitle || '未知頻道',
-    url: `https://www.youtube.com/watch?v=${item.id}`,
-    views: Number(item.statistics?.viewCount || 0),
-    likes: Number(item.statistics?.likeCount || 0),
-    comments: Number(item.statistics?.commentCount || 0),
-    publishedAt: item.snippet?.publishedAt || '',
-    viewSignal: `${compact(item.statistics?.viewCount)} 次觀看`,
-    sourceMode: 'youtube-data-api',
-    ...strategyFromTitle(item.snippet?.title || ''),
-  }));
+  return (videosData.items || []).filter((item) => !excludeChannel || item.snippet?.channelTitle?.trim().toLowerCase() !== excludeChannel.trim().toLowerCase()).slice(0, 3).map((item) => ({title: item.snippet?.title || '未命名影片', channel: item.snippet?.channelTitle || '未知頻道', url: `https://www.youtube.com/watch?v=${item.id}`, views: Number(item.statistics?.viewCount || 0), likes: Number(item.statistics?.likeCount || 0), comments: Number(item.statistics?.commentCount || 0), publishedAt: item.snippet?.publishedAt || '', viewSignal: `${compact(item.statistics?.viewCount)} 次觀看`, sourceMode: 'youtube-data-api', ...strategyFromTitle(item.snippet?.title || '')}));
 };
 
 export default async function handler(req, res) {
@@ -133,32 +114,16 @@ export default async function handler(req, res) {
   const excludeId = extractVideoId(req.query.exclude || source);
   const sourceMeta = await sourceMetadata(source);
   const rawQuery = String(req.query.q || sourceMeta?.title || '');
-  const q = cleanQuery(rawQuery) || '創業 商業模式 成長';
-
+  const q = deriveQuery(rawQuery);
   try {
     let items = [];
     let mode = 'youtube-web+oembed';
     if (apiKey) {
-      try {
-        items = await apiSearch(apiKey, q, excludeId);
-        mode = 'youtube-data-api';
-      } catch {
-        items = [];
-      }
+      try { items = await apiSearch(apiKey, q, excludeId, sourceMeta?.channel || ''); mode = 'youtube-data-api'; } catch { items = []; }
     }
-    if (items.length < 3) {
-      items = await fallbackSearch(q, excludeId);
-      mode = 'youtube-web+oembed';
-    }
-    return res.status(200).json({
-      items: items.filter((x) => x.url && extractVideoId(x.url) !== excludeId).slice(0, 3),
-      verified: items.length > 0,
-      query: q,
-      sourceTitle: sourceMeta?.title || '',
-      sourceChannel: sourceMeta?.channel || '',
-      mode,
-      reason: items.length ? '' : '未找到可驗證的公開同題材影片。',
-    });
+    if (items.length < 3) { items = await fallbackSearch(q, excludeId, sourceMeta?.channel || ''); mode = 'youtube-web+oembed'; }
+    const cleanItems = items.filter((x) => x.url && extractVideoId(x.url) !== excludeId).slice(0, 3);
+    return res.status(200).json({items: cleanItems, verified: cleanItems.length > 0, query: q, sourceTitle: sourceMeta?.title || '', sourceChannel: sourceMeta?.channel || '', mode, reason: cleanItems.length ? '' : '未找到可驗證的公開同題材影片。'});
   } catch (error) {
     return res.status(200).json({items: [], verified: false, query: q, reason: error instanceof Error ? error.message : '競品搜尋失敗'});
   }
