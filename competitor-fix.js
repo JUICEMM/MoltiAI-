@@ -36,8 +36,8 @@
     return [
       `多數人談「${short}」時，真正忽略的是結果怎麼被做出來。`,
       `如果只用 15 秒講清楚「${short}」，我會先講這個關鍵。`,
-      `同一個主題，為什麼有些影片前三秒就讓人想看完？`,
-      `別急著介紹內容，先把觀眾最在意的結果放到第一句。`,
+      '同一個主題，為什麼有些影片前三秒就讓人想看完？',
+      '別急著介紹內容，先把觀眾最在意的結果放到第一句。',
       `把「${short}」改成短影音，最值得保留的不是標題，而是證據。`,
     ];
   };
@@ -65,8 +65,7 @@
       const source = String(requestBody?.url || data.url || '');
       if (!/youtu(?:be\.com|\.be)/i.test(source)) return response;
       const requestedTitle = String(requestBody?.title || '').trim();
-      const badHookTitle = String(data.hooks?.[0] || '').match(/[「"]([^」"]+)[」"]/)?.[1] || '';
-      const q = cleanTopic(requestedTitle || badHookTitle);
+      const q = cleanTopic(requestedTitle);
       const endpoint = new URL('/api/video/competitors', window.location.origin);
       endpoint.searchParams.set('source', source);
       if (q) endpoint.searchParams.set('q', q);
@@ -75,7 +74,7 @@
       const competitorResponse = await originalFetch(endpoint.toString(), {headers: {'Accept': 'application/json'}});
       const competitorData = competitorResponse.ok ? await competitorResponse.json() : {items: []};
       const competitors = Array.isArray(competitorData.items) ? competitorData.items.filter((x) => x?.url && extractId(x.url) !== id).slice(0, 3) : [];
-      const sourceTitle = String(competitorData.sourceTitle || requestedTitle || q || '').trim();
+      const sourceTitle = String(competitorData.sourceTitle || requestedTitle || '').trim();
       const hooks = buildHooks(sourceTitle, competitors);
       data.hooks = hooks;
       data.storyboard = buildStoryboard(hooks, sourceTitle);
@@ -83,7 +82,7 @@
         ? competitors.map(comparisonText)
         : ['目前未找到可驗證的公開同題材影片；系統已停止製造假競品。請稍後重試或補充更明確的影片主題。'];
       data.metadataPlan = competitors.length
-        ? `來源辨識：YouTube 已驗證。競品證據：${competitors.length}/3 Verified（${competitorData.mode || 'public search'}）。競品均有可驗證 YouTube URL，且已排除原影片。`
+        ? `來源辨識：YouTube 已驗證。競品證據：${competitors.length}/3 Verified（${competitorData.mode || 'public search'}）。競品均有可驗證 YouTube URL，且已排除原影片與原頻道。`
         : '來源辨識：YouTube 已驗證。競品搜尋未取得足夠可驗證結果，因此不顯示假競品；Hook 已改用主題語意重寫，不再截斷原標題。';
       data.confidence = competitors.length >= 3 ? 'high' : competitors.length ? 'medium' : 'fallback';
       data.scores = {...(data.scores || {}), density: Math.max(3, Number(data.scores?.density || 3))};
