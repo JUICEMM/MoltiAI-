@@ -9,8 +9,8 @@
     } catch { return false; }
   };
 
-  // Analyze URL V2: never rely on the legacy worker strategy output. The local Vercel API
-  // combines source metadata, verified competitor URLs and DeepSeek semantic rewriting.
+  // Analyze URL V2: route legacy worker analyze calls through the Vercel API that combines
+  // source metadata, verified competitor URLs and DeepSeek semantic rewriting.
   window.fetch = async (input, init) => {
     const requestUrl = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
     if (isLegacyAnalyze(requestUrl) && init?.method?.toUpperCase() === 'POST') {
@@ -35,8 +35,43 @@
     .analysis ol li{white-space:pre-line;margin-bottom:16px;line-height:1.7}
     .analysis ol li a.moltiai-source-link{display:inline-block;margin-top:8px;font-weight:700;text-decoration:underline}
     .analysis .evidence-badge{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#ecfdf5;color:#047857;margin-left:8px}
+    .moltiai-render-note{font-size:12px;color:#64748b;margin-top:8px;line-height:1.5}
   `;
   document.head.appendChild(style);
+
+  const printableReport = () => {
+    const analysis = document.querySelector('.analysis');
+    if (!analysis) return false;
+    const copy = analysis.cloneNode(true);
+    copy.querySelectorAll('button').forEach((el) => el.remove());
+    const sourceInput = [...document.querySelectorAll('input')].find((el) => /youtube|instagram|tiktok|facebook|douyin|xiaohongshu|youtu\.be/i.test(el.value || ''));
+    const source = sourceInput?.value || '';
+    const report = window.open('', '_blank', 'noopener,noreferrer');
+    if (!report) {
+      alert('瀏覽器阻擋了報告視窗，請允許此網站開啟彈出視窗後再試一次。');
+      return true;
+    }
+    const escapedSource = source.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    report.document.open();
+    report.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>MoltiAI 短影音策略報告</title><style>
+      @page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;color:#0f172a;line-height:1.65;margin:0;background:white}main{max-width:780px;margin:auto}h1{font-size:24px;margin:0 0 4px}h2{font-size:19px;margin-top:24px}h3{font-size:16px;margin-top:20px}p,li{font-size:13px}ol,ul{padding-left:22px}.head{border-bottom:2px solid #111827;padding-bottom:12px;margin-bottom:18px}.muted{color:#64748b;font-size:11px}.analysis ol li{white-space:pre-line;margin-bottom:14px}.evidence-badge{display:inline-block;font-size:10px;margin-left:6px}.moltiai-source-link{word-break:break-all;color:#1d4ed8}button{display:none!important}@media print{a{color:#111827;text-decoration:none}.no-print{display:none!important}}</style></head><body><main><div class="head"><h1>MoltiAI 短影音策略報告</h1><div class="muted">來源：${escapedSource || '依頁面輸入資料'}<br>產生時間：${new Date().toLocaleString('zh-TW')}</div></div>${copy.outerHTML}<p class="muted">MoltiAI / 瞬影科技 - AI 分析內容仍應由人工做品牌、事實與授權確認。</p></main><script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);
+    report.document.close();
+    return true;
+  };
+
+  // Capture PDF buttons before React's old Type1-font PDF handler runs. Browser print keeps
+  // Traditional Chinese glyphs intact and lets the user save a real PDF without mojibake.
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('button');
+    if (!button) return;
+    const text = button.textContent || '';
+    if (/PDF|報告/.test(text) && document.querySelector('.analysis')) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      printableReport();
+    }
+  }, true);
 
   const decorate = () => {
     document.querySelectorAll('.analysis h3').forEach((h3) => {
@@ -69,6 +104,16 @@
       a.textContent = '查看 YouTube 影片';
       li.appendChild(document.createElement('br'));
       li.appendChild(a);
+    });
+
+    // Explain the real render duration instead of making a long-running job look broken.
+    document.querySelectorAll('button').forEach((button) => {
+      if (!/生成 15 秒影片|生成影片|開始生成/i.test(button.textContent || '')) return;
+      if (button.parentElement?.querySelector('.moltiai-render-note')) return;
+      const note = document.createElement('div');
+      note.className = 'moltiai-render-note';
+      note.textContent = '影片由 Render Worker 實際渲染；首次啟動約 1–2 分鐘，請保持頁面開啟。';
+      button.parentElement?.appendChild(note);
     });
   };
 
