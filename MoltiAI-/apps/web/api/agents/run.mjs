@@ -17,14 +17,14 @@ const providerSystem = {
   codex: '你扮演 MoltiAI 的 Codex Engineering Specialist。請聚焦程式設計、除錯、GitHub、API、測試與部署，提供可執行的工程步驟。',
 };
 
-const fallback = (agentName, prompt, provider='auto') => `【${agentName}｜Guest Mode】\n\n任務\n${prompt}\n\n目前沒有任何可用的伺服器端 AI 憑證，因此先以 MoltiAI 本地 Workflow 回覆。\n\n建議流程\n1. 先確認輸入資料、目標與成功指標。\n2. AI 負責研究、整理與初稿。\n3. 高風險動作由 Michael / 人工確認。\n4. 把成果寫入 SOP / CRM / 專案紀錄。\n5. 用節省工時、品質、轉換率與成本做 30 日驗證。\n\nRequested Role: ${provider}`;
+const fallback = (agentName, prompt, provider='auto', reason='') => `【${agentName}｜Guest Mode】\n\n任務\n${prompt}\n\n目前無法取得外部 AI 回覆，因此先以 MoltiAI 本地 Workflow 回覆。${reason ? `\n\n診斷\n${reason}` : ''}\n\n建議流程\n1. 先確認輸入資料、目標與成功指標。\n2. AI 負責研究、整理與初稿。\n3. 高風險動作由 Michael / 人工確認。\n4. 把成果寫入 SOP / CRM / 專案紀錄。\n5. 用節省工時、品質、轉換率與成本做 30 日驗證。\n\nRequested Role: ${provider}`;
 
 async function callOpenAI(system, prompt, model) {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}`},
     body: JSON.stringify({model: model || process.env.OPENAI_MODEL || 'gpt-5-mini', temperature: 0.3, messages: [{role: 'system', content: system}, {role: 'user', content: prompt}]})
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${await response.text()}`);
   const data = await response.json();
   return data.choices?.[0]?.message?.content || '';
 }
@@ -34,27 +34,55 @@ async function callAnthropic(system, prompt) {
     method: 'POST', headers: {'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01'},
     body: JSON.stringify({model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5', max_tokens: 2200, system, messages: [{role: 'user', content: prompt}]})
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw new Error(`Anthropic ${response.status}: ${await response.text()}`);
   const data = await response.json();
   return data.content?.map((part) => part.text || '').join('\n') || '';
 }
 
-async function callGemini(system, prompt) {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+
+async function callGeminiModel(system, prompt, model) {
+  const key = geminiKey();
+  if (!key) throw new Error('Gemini credential missing');
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST', headers: {'Content-Type': 'application/json', 'x-goog-api-key': key},
     body: JSON.stringify({system_instruction: {parts: [{text: system}]}, contents: [{role: 'user', parts: [{text: prompt}]}]})
   });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw new Error(`Gemini ${model} ${response.status}: ${await response.text()}`);
   const data = await response.json();
   return data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('\n') || '';
+}
+
+async function callGemini(system, prompt) {
+  const candidates = [process.env.GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'].filter(Boolean);
+  const seen = new Set();
+  const errors = [];
+  for (const model of candidates) {
+    if (seen.has(model)) continue;
+    seen.add(model);
+    try {
+      const output = await callGeminiModel(system, prompt, model);
+      if (output) return {output, model};
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  throw new Error(errors.join(' | ') || 'Gemini returned no content');
+}
+
+function credentialStatus() {
+  return {
+    openaiApiKey: Boolean(process.env.OPENAI_API_KEY),
+    geminiApiKey: Boolean(process.env.GEMINI_API_KEY),
+    googleApiKey: Boolean(process.env.GOOGLE_API_KEY),
+    anthropicApiKey: Boolean(process.env.ANTHROPIC_API_KEY),
+  };
 }
 
 function nativeProviders() {
   return {
     chatgpt: Boolean(process.env.OPENAI_API_KEY),
-    gemini: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
+    gemini: Boolean(geminiKey()),
     claude: Boolean(process.env.ANTHROPIC_API_KEY),
     copilot: false,
     codex: Boolean(process.env.OPENAI_API_KEY),
@@ -62,7 +90,7 @@ function nativeProviders() {
 }
 
 function hasAnyEngine() {
-  return Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  return Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || geminiKey());
 }
 
 function usableProviders() {
@@ -72,12 +100,12 @@ function usableProviders() {
 
 async function callAvailableEngine(system, prompt, requested) {
   if (requested === 'chatgpt' && process.env.OPENAI_API_KEY) return {output: await callOpenAI(system, prompt, process.env.OPENAI_MODEL || 'gpt-5-mini'), provider:'chatgpt', native:true};
-  if (requested === 'gemini' && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) return {output: await callGemini(system, prompt), provider:'gemini', native:true};
+  if (requested === 'gemini' && geminiKey()) { const r = await callGemini(system, prompt); return {output:r.output, provider:`gemini/${r.model}`, native:true}; }
   if (requested === 'claude' && process.env.ANTHROPIC_API_KEY) return {output: await callAnthropic(system, prompt), provider:'claude', native:true};
   if (requested === 'codex' && process.env.OPENAI_API_KEY) return {output: await callOpenAI(system, prompt, process.env.OPENAI_CODEX_MODEL || 'gpt-5.1-codex'), provider:'codex', native:true};
 
-  // Guest proxy: the requested role remains the same, while the actual engine uses any server-side model that is available.
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return {output: await callGemini(system, prompt), provider:`${requested}-role/gemini`, native:false};
+  // Guest proxy: keep the requested role/prompt behavior, but execute with any working server-side engine.
+  if (geminiKey()) { const r = await callGemini(system, prompt); return {output:r.output, provider:`${requested}-role/gemini/${r.model}`, native:false}; }
   if (process.env.OPENAI_API_KEY) return {output: await callOpenAI(system, prompt, process.env.OPENAI_MODEL || 'gpt-5-mini'), provider:`${requested}-role/openai`, native:false};
   if (process.env.ANTHROPIC_API_KEY) return {output: await callAnthropic(system, prompt), provider:`${requested}-role/claude`, native:false};
   return null;
@@ -86,7 +114,7 @@ async function callAvailableEngine(system, prompt, requested) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  if (req.method === 'GET') return res.status(200).json({guestMode:true, providers:usableProviders(), nativeProviders:nativeProviders(), note:'Visitors do not register. Provider credentials stay server-side. Non-native roles may run through a server-side guest proxy.'});
+  if (req.method === 'GET') return res.status(200).json({guestMode:true, providers:usableProviders(), nativeProviders:nativeProviders(), credentials:credentialStatus(), note:'Visitors do not register. Provider credentials stay server-side. Non-native roles may run through a server-side guest proxy.'});
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
   const {agentId='strategy', agentName='AI Agent', prompt='', provider='auto'} = req.body || {};
   if (!String(prompt).trim()) return res.status(400).json({error:'prompt is required'});
@@ -94,9 +122,12 @@ export default async function handler(req, res) {
   const system = `${providerSystem[requested]}\n\n${systemByAgent[agentId] || systemByAgent.strategy}`;
   try {
     const result = await callAvailableEngine(system, String(prompt), requested);
-    if (result?.output) return res.status(200).json({...result, requestedProvider:requested, guestMode:true, providers:usableProviders(), nativeProviders:nativeProviders()});
-    return res.status(200).json({output:fallback(agentName,String(prompt),requested),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),warning:'No server-side AI engine configured'});
+    if (result?.output) return res.status(200).json({...result, requestedProvider:requested, guestMode:true, providers:usableProviders(), nativeProviders:nativeProviders(), credentials:credentialStatus()});
+    const reason = 'No server-side AI engine configured';
+    return res.status(200).json({output:fallback(agentName,String(prompt),requested,reason),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning:reason});
   } catch (error) {
-    return res.status(200).json({output:fallback(agentName,String(prompt),requested),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),warning:error instanceof Error ? error.message : 'AI provider unavailable'});
+    const warning = error instanceof Error ? error.message : 'AI provider unavailable';
+    console.error('[MoltiAI guest AI]', warning);
+    return res.status(200).json({output:fallback(agentName,String(prompt),requested,warning),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning});
   }
 }
