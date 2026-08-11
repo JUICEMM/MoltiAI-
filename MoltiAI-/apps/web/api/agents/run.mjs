@@ -10,14 +10,24 @@ const systemByAgent = {
 };
 
 const providerSystem = {
-  chatgpt: '你扮演 MoltiAI 的 ChatGPT AI Operations Manager。請把任務拆解、判斷適合的 AI 專家、整合結果，並標示 Human Approval 與 KPI。',
-  gemini: '你扮演 MoltiAI 的 Gemini Research Specialist。請聚焦公開研究、資料整理、比較、證據與來源需求；不要捏造來源。',
-  claude: '你扮演 MoltiAI 的 Claude Consultant Specialist。請聚焦策略、顧問分析、長文寫作、制度與提案，產出可直接使用的繁體中文結果。',
-  copilot: '你扮演 MoltiAI 的 Office / Copilot Specialist。請聚焦 Word、Excel、PowerPoint、Outlook、會議與企業 Office 工作。訪客免登入模式不得聲稱已存取 Microsoft 365 私有資料。',
-  codex: '你扮演 MoltiAI 的 Codex Engineering Specialist。請聚焦程式設計、除錯、GitHub、API、測試與部署，提供可執行的工程步驟。',
+  chatgpt: '你扮演 MoltiAI 的 ChatGPT Role / AI Operations Manager。請把任務拆解、判斷適合的 AI 專家、整合結果，並標示 Human Approval 與 KPI。注意：此角色目前由 DeepSeek Engine 執行。',
+  gemini: '你扮演 MoltiAI 的 Gemini Role / Research Specialist。請聚焦公開研究、資料整理、比較、證據與來源需求；不要捏造來源。此角色使用 Gemini Native。',
+  claude: '你扮演 MoltiAI 的 Claude Role / Consultant Specialist。請聚焦策略、顧問分析、長文寫作、制度與提案，產出可直接使用的繁體中文結果。注意：此角色目前由 DeepSeek Engine 執行，不要自稱原生 Claude API。',
+  copilot: '你扮演 MoltiAI 的 Copilot / Office Role。請聚焦 Word、Excel、PowerPoint、Outlook、會議與企業 Office 工作。訪客免登入模式不得聲稱已存取 Microsoft 365 私有資料。注意：此角色目前由 DeepSeek Engine 執行，不要自稱原生 Copilot。',
+  codex: '你扮演 MoltiAI 的 Codex Role / Engineering Specialist。請聚焦程式設計、除錯、GitHub、API、測試與部署，提供可執行的工程步驟。注意：此角色目前由 DeepSeek Engine 執行，不要自稱原生 Codex API。',
 };
 
-const fallback = (agentName, prompt, provider='auto', reason='') => `【${agentName}｜Guest Mode】\n\n任務\n${prompt}\n\n目前無法取得外部 AI 回覆，因此先以 MoltiAI 本地 Workflow 回覆。${reason ? `\n\n診斷\n${reason}` : ''}\n\n建議流程\n1. 先確認輸入資料、目標與成功指標。\n2. AI 負責研究、整理與初稿。\n3. 高風險動作由 Michael / 人工確認。\n4. 把成果寫入 SOP / CRM / 專案紀錄。\n5. 用節省工時、品質、轉換率與成本做 30 日驗證。\n\nRequested Role: ${provider}`;
+const roleLabels = {
+  chatgpt: 'ChatGPT Role',
+  gemini: 'Gemini Role',
+  claude: 'Claude Role',
+  copilot: 'Copilot / Office Role',
+  codex: 'Codex Role',
+};
+
+const engineLabelFor = (provider) => provider === 'gemini' ? 'Gemini Native' : 'DeepSeek Engine';
+
+const fallback = (agentName, prompt, provider='auto', reason='') => `【${agentName}｜Guest Mode】\n\n任務\n${prompt}\n\n目前無法取得外部 AI 回覆，因此先以 MoltiAI 本地 Workflow 回覆。${reason ? `\n\n診斷\n${reason}` : ''}\n\n建議流程\n1. 先確認輸入資料、目標與成功指標。\n2. AI 負責研究、整理與初稿。\n3. 高風險動作由 Michael / 人工確認。\n4. 把成果寫入 SOP / CRM / 專案紀錄。\n5. 用節省工時、品質、轉換率與成本做 30 日驗證。\n\nRequested Role: ${roleLabels[provider] || provider}\nExpected Engine: ${engineLabelFor(provider)}`;
 
 async function callDeepSeek(system, prompt, model) {
   if (!process.env.DEEPSEEK_API_KEY) throw new Error('DeepSeek credential missing');
@@ -66,34 +76,25 @@ async function callGemini(system,prompt){
 }
 
 function credentialStatus(){return{deepseekApiKey:Boolean(process.env.DEEPSEEK_API_KEY),openaiApiKey:Boolean(process.env.OPENAI_API_KEY),geminiApiKey:Boolean(process.env.GEMINI_API_KEY),googleApiKey:Boolean(process.env.GOOGLE_API_KEY),anthropicApiKey:Boolean(process.env.ANTHROPIC_API_KEY)}}
-function nativeProviders(){return{chatgpt:Boolean(process.env.OPENAI_API_KEY),gemini:Boolean(geminiKey()),claude:Boolean(process.env.ANTHROPIC_API_KEY),copilot:false,codex:Boolean(process.env.OPENAI_API_KEY),deepseek:Boolean(process.env.DEEPSEEK_API_KEY)}}
-function hasAnyEngine(){return Boolean(process.env.DEEPSEEK_API_KEY||process.env.OPENAI_API_KEY||process.env.ANTHROPIC_API_KEY||geminiKey())}
-function usableProviders(){const on=hasAnyEngine();return{chatgpt:on,gemini:on,claude:on,copilot:on,codex:on,deepseek:Boolean(process.env.DEEPSEEK_API_KEY)}}
+function nativeProviders(){return{chatgpt:false,gemini:Boolean(geminiKey()),claude:false,copilot:false,codex:false,deepseek:Boolean(process.env.DEEPSEEK_API_KEY)}}
+function usableProviders(){const deepseek=Boolean(process.env.DEEPSEEK_API_KEY);return{chatgpt:deepseek,gemini:Boolean(geminiKey()),claude:deepseek,copilot:deepseek,codex:deepseek,deepseek}}
 
 async function callAvailableEngine(system,prompt,requested){
-  // Native provider first when its own credential exists.
-  if(requested==='chatgpt'&&process.env.OPENAI_API_KEY)return{output:await callOpenAI(system,prompt,process.env.OPENAI_MODEL||'gpt-5-mini'),provider:'chatgpt',native:true};
   if(requested==='gemini'&&geminiKey()){const r=await callGemini(system,prompt);return{output:r.output,provider:`gemini/${r.model}`,native:true};}
-  if(requested==='claude'&&process.env.ANTHROPIC_API_KEY)return{output:await callAnthropic(system,prompt),provider:'claude',native:true};
-  if(requested==='codex'&&process.env.OPENAI_API_KEY)return{output:await callOpenAI(system,prompt,process.env.OPENAI_CODEX_MODEL||'gpt-5.1-codex'),provider:'codex',native:true};
 
-  // DeepSeek is the preferred guest engine for all roles.
+  // DeepSeek is the required guest engine for ChatGPT / Claude / Copilot / Codex roles.
   if(process.env.DEEPSEEK_API_KEY){
     const output=await callDeepSeek(system,prompt,process.env.DEEPSEEK_MODEL||'deepseek-v4-flash');
     return{output,provider:`${requested}-role/deepseek/${process.env.DEEPSEEK_MODEL||'deepseek-v4-flash'}`,native:false};
   }
 
-  // Secondary fallbacks only if DeepSeek is unavailable.
-  if(geminiKey()){const r=await callGemini(system,prompt);return{output:r.output,provider:`${requested}-role/gemini/${r.model}`,native:false};}
-  if(process.env.OPENAI_API_KEY)return{output:await callOpenAI(system,prompt,process.env.OPENAI_MODEL||'gpt-5-mini'),provider:`${requested}-role/openai`,native:false};
-  if(process.env.ANTHROPIC_API_KEY)return{output:await callAnthropic(system,prompt),provider:`${requested}-role/claude`,native:false};
   return null;
 }
 
 export default async function handler(req,res){
   res.setHeader('Cache-Control','no-store');res.setHeader('Access-Control-Allow-Origin','*');
   if(req.method==='GET'){
-    const base={guestMode:true,enginePriority:['deepseek','native-provider','gemini','openai','anthropic'],providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),note:'Visitors do not register. Provider credentials stay server-side. DeepSeek is the preferred guest engine.'};
+    const base={guestMode:true,enginePriority:['gemini-native','deepseek'],providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),roleEngines:{chatgpt:'DeepSeek Engine',gemini:'Gemini Native',claude:'DeepSeek Engine',copilot:'DeepSeek Engine',codex:'DeepSeek Engine'},note:'Visitors do not register. Gemini Role uses Gemini Native. ChatGPT / Claude / Copilot / Codex roles run through DeepSeek Engine.'};
     if(String(req.query?.health||'')==='1'){
       const health={};
       if(process.env.DEEPSEEK_API_KEY){
@@ -106,6 +107,6 @@ export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});
   const{agentId='strategy',agentName='AI Agent',prompt='',provider='auto'}=req.body||{};if(!String(prompt).trim())return res.status(400).json({error:'prompt is required'});
   const requested=['chatgpt','gemini','claude','copilot','codex'].includes(String(provider))?String(provider):'chatgpt';const system=`${providerSystem[requested]}\n\n${systemByAgent[agentId]||systemByAgent.strategy}`;
-  try{const result=await callAvailableEngine(system,String(prompt),requested);if(result?.output)return res.status(200).json({...result,requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus()});const reason='No server-side AI engine configured';return res.status(200).json({output:fallback(agentName,String(prompt),requested,reason),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning:reason});}
-  catch(error){const warning=error instanceof Error?error.message:'AI provider unavailable';console.error('[MoltiAI guest AI]',warning);return res.status(200).json({output:fallback(agentName,String(prompt),requested,warning),provider:'fallback',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning});}
+  try{const result=await callAvailableEngine(system,String(prompt),requested);if(result?.output)return res.status(200).json({...result,roleLabel:roleLabels[requested],engineLabel:result.native?'Gemini Native':engineLabelFor(requested),requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus()});const reason=`${engineLabelFor(requested)} credential missing`;return res.status(200).json({output:fallback(agentName,String(prompt),requested,reason),provider:'fallback',roleLabel:roleLabels[requested],engineLabel:'MoltiAI Local Workflow',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning:reason});}
+  catch(error){const warning=error instanceof Error?error.message:'AI provider unavailable';console.error('[MoltiAI guest AI]',warning);return res.status(200).json({output:fallback(agentName,String(prompt),requested,warning),provider:'fallback',roleLabel:roleLabels[requested],engineLabel:'MoltiAI Local Workflow',requestedProvider:requested,guestMode:true,providers:usableProviders(),nativeProviders:nativeProviders(),credentials:credentialStatus(),warning});}
 }
