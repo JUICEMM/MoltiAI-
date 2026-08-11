@@ -100,7 +100,19 @@ async function deepSeekStrategy({metadata, competitors, manualDescription}) {
 }
 
 const safeScore = (v, fallback=3) => Math.max(1, Math.min(5, Number(v) || fallback));
-const asStrings = (value, limit) => Array.isArray(value) ? value.map((x)=>String(x||'').trim()).filter(Boolean).slice(0,limit) : [];
+const stringifyContent = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value).trim();
+  if (Array.isArray(value)) return value.map(stringifyContent).filter(Boolean).join(' / ');
+  if (typeof value === 'object') {
+    const keys = ['time','時間','seconds','秒數','scene','畫面','visual','字幕','subtitle','旁白','voiceover','copy','text','description','內容','action','cta'];
+    const parts = keys.map((key) => value[key]).filter((item) => item != null).map(stringifyContent).filter(Boolean);
+    if (parts.length) return parts.join('：');
+    return Object.entries(value).map(([key, item]) => `${key}：${stringifyContent(item)}`).filter((item) => !item.endsWith('：')).join(' / ');
+  }
+  return String(value).trim();
+};
+const asStrings = (value, limit) => Array.isArray(value) ? value.map(stringifyContent).filter(Boolean).slice(0,limit) : [];
 
 const fallbackStrategy = (metadata, description='') => {
   const topic = String(metadata.title || description || '這個主題').trim();
