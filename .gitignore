@@ -3,6 +3,7 @@ node_modules/
 vidgo-video-prototype/node_modules/
 
 # Build and render output
+dist/
 out/
 vidgo-video-prototype/out/
 

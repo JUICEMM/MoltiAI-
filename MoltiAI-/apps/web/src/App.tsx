@@ -29,11 +29,14 @@ import {
   Video,
   WandSparkles,
   Workflow,
+  LogOut,
 } from 'lucide-react';
 import './styles.css';
+import {SalesDashboardSnapshot, SalesOS, type WorkspaceSession} from './sales-os';
+import {clearWorkspaceSession, readWorkspaceSession, WorkspaceSignIn} from './workspace-auth';
 
-type View = 'dashboard' | 'agents' | 'analyze' | 'create' | 'video-factory' | 'management';
-type Department = 'management' | 'sales' | 'marketing' | 'customer' | 'consulting' | 'training' | 'content' | 'finance';
+type View = 'dashboard' | 'sales' | 'agents' | 'analyze' | 'create' | 'video-factory' | 'management';
+type Department = 'management' | 'sales' | 'marketing' | 'social' | 'customer' | 'consulting' | 'training' | 'content' | 'finance';
 type Platform = 'youtube' | 'instagram' | 'facebook' | 'tiktok' | 'douyin' | 'xiaohongshu' | 'other' | 'unknown';
 
 type AnalysisResult = {
@@ -63,7 +66,7 @@ type Agent = {
   automations: string[];
   approvals: string[];
   samplePrompt: string;
-  icon: 'strategy' | 'sales' | 'marketing' | 'crm' | 'consultant' | 'training' | 'video' | 'finance';
+  icon: 'strategy' | 'sales' | 'marketing' | 'social' | 'crm' | 'consultant' | 'training' | 'video' | 'finance';
 };
 type AgentRun = {id: string; agentId: string; agentName: string; prompt: string; output: string; createdAt: string; mode: 'AI' | 'fallback'};
 
@@ -76,7 +79,7 @@ const agents: Agent[] = [
     mission: '彙整公司 KPI、商機、專案與市場情報，產出主管決策摘要。',
     automations: ['每日營運摘要', '每週 KPI / 商機檢視', '重大風險與待決策事項', '競品與 AI 趨勢整理'],
     approvals: ['重大策略', '預算與投資', '對外承諾'],
-    samplePrompt: '整理本週業務、行銷、客戶與財務狀況，列出 3 個最需要我決策的事項。', icon: 'strategy'
+    samplePrompt: '只根據目前可用資料源（moltiai.com / Wix 課程與報價、Google Calendar 預約、Gmail 開發信、vidgo.co）盤點本週營運狀況；沒有資料的地方請列為缺口，不要編造數字。', icon: 'strategy'
   },
   {
     id: 'sales', department: 'sales', name: 'Sales Agent', title: '業務開發',
@@ -93,11 +96,18 @@ const agents: Agent[] = [
     samplePrompt: '把「企業 AI 導入不是買 ChatGPT」做成一週 5 則內容，包含 2 支 30 秒短影音。', icon: 'marketing'
   },
   {
+    id: 'social', department: 'social', name: 'Social Growth Agent', title: '社群成交',
+    mission: '分析 Facebook、TikTok、抖音與 YouTube 後台數據，找出內容、互動與預約成交缺口。',
+    automations: ['社群後台數據摘要', '內容表現排序', '留言 / 私訊機會整理', '預約導流 CTA 建議', '每週社群成交復盤'],
+    approvals: ['對外回覆', '私訊開發', '廣告加碼', '品牌與敏感內容'],
+    samplePrompt: '根據我貼上的 Facebook、TikTok、抖音、YouTube 後台數據，分析目前社群狀態、內容表現、互動缺口與導到 Google Calendar 預約的下一步；沒有提供的平台資料請標示為待補，不要編造粉絲、觀看、留言、私訊或成交數。', icon: 'social'
+  },
+  {
     id: 'crm', department: 'customer', name: 'CRM / Customer Success Agent', title: '客戶管理',
     mission: '整理商機階段、追蹤客戶回覆與續約機會，避免漏追。',
     automations: ['商機摘要', '待 Follow-up 清單', '會議紀要轉 CRM', '續約 / 加購提醒', '失聯客戶再啟動'],
     approvals: ['客戶狀態異動', '折扣', '客訴回覆'],
-    samplePrompt: '把今天所有客戶互動整理成下一步、Owner、期限與成交機率。', icon: 'crm'
+    samplePrompt: '根據目前已有的 Wix 報價、Google Calendar 預約與 Gmail 開發信，建立客戶追蹤欄位與下一步；沒有真實互動資料時請列出需要補上的資料，不要編造成交機率。', icon: 'crm'
   },
   {
     id: 'consultant', department: 'consulting', name: 'AI Consultant Agent', title: 'AI 顧問',
@@ -125,12 +135,23 @@ const agents: Agent[] = [
     mission: '彙整應收、成本、毛利與現金流，提供管理提醒，不自動執行付款。',
     automations: ['應收提醒', '專案毛利摘要', '軟體/API 成本整理', '月度現金流摘要', '異常費用提醒'],
     approvals: ['任何付款', '會計認列', '稅務申報', '薪資與銀行操作'],
-    samplePrompt: '整理本月營收、應收、固定成本與 API 成本，指出現金流風險與 3 個改善動作。', icon: 'finance'
+    samplePrompt: '盤點目前可從 Wix 報價、課程銷售、Gmail 往來與手動輸入建立哪些財務欄位；沒有真實營收與成本資料時請列資料缺口，不要編造現金流數字。', icon: 'finance'
   },
 ];
 
+const availableDataSources = [
+  'Wix 官網 moltiai.com、線上課程頁與 Wix 報價',
+  'Google Calendar 預約 / 諮詢行程',
+  'Gmail 開發信與客戶往來',
+  'vidgo.co 即將上線的產品資料',
+  'Facebook / TikTok / 抖音 / YouTube 後台可見或匯出的社群數據',
+  '使用者手動貼上的客戶或營運資料',
+];
+
+const missingDataNotice = '目前尚未接正式 CRM、金流、會計、廣告後台或客服系統；社群數據只使用後台可見、匯出或本次貼上的資料。Agent 不應產生未提供的營收、訂單、客訴、成交率、現金流、粉絲、觀看、私訊或成交數字。';
+
 const departmentLabels: Record<Department, string> = {
-  management: '經營管理', sales: '業務', marketing: '行銷', customer: '客戶管理', consulting: '顧問', training: '教育訓練', content: '內容與 AI 影音', finance: '財務'
+  management: '經營管理', sales: '業務', marketing: '行銷', social: '社群成交', customer: '客戶管理', consulting: '顧問', training: '教育訓練', content: '內容與 AI 影音', finance: '財務'
 };
 
 const platformLabels: Record<Platform, string> = {
@@ -227,7 +248,7 @@ const downloadSimplePdf = (text: string, filename: string) => {
 
 const localAgentOutput = (agent: Agent, prompt: string) => {
   const now = new Date().toLocaleString('zh-TW');
-  return `【${agent.name}｜${now}】\n\n任務\n${prompt}\n\n建議執行流程\n1. 定義輸入資料與目標成果。\n2. AI 先做研究、整理與草稿。\n3. 依部門規則做品質 / 風險檢查。\n4. 需要核准的動作交由人工確認。\n5. 記錄 KPI，下一輪再優化。\n\n自動化項目\n${agent.automations.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n人工核准\n${agent.approvals.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nKPI 建議\n- 節省工時\n- 產出量 / 回覆速度\n- 錯誤率或轉換率\n- AI 成本與人工覆核時間\n\n下一步\n先用一個高頻、可衡量的流程跑 30 天 Pilot，再決定是否擴大。`;
+  return `【${agent.name}｜${now}】\n\n任務\n${prompt}\n\n資料來源狀態\n目前可用：\n${availableDataSources.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n尚未接上：正式 CRM、金流/付款、會計、廣告後台、客服系統、課程銷售明細。\n\n重要限制\n${missingDataNotice}\n\n建議執行流程\n1. 先確認這次任務要讀取哪個資料源。\n2. 沒有資料的欄位標示為「待補」，不要用範例數字代替。\n3. AI 先做研究、整理與草稿。\n4. 依部門規則做品質 / 風險檢查。\n5. 需要核准的動作交由人工確認。\n\n自動化項目\n${agent.automations.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n人工核准\n${agent.approvals.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n下一步\n先建立 Wix 報價、Calendar 預約、Gmail 開發信的統一客戶追蹤表，再讓 Agent 依真實資料產出決策摘要。`;
 };
 
 function IconForAgent({agent}: {agent: Agent}) {
@@ -235,6 +256,7 @@ function IconForAgent({agent}: {agent: Agent}) {
   if (agent.icon === 'strategy') return <Target {...props} />;
   if (agent.icon === 'sales') return <BriefcaseBusiness {...props} />;
   if (agent.icon === 'marketing') return <Megaphone {...props} />;
+  if (agent.icon === 'social') return <BarChart3 {...props} />;
   if (agent.icon === 'crm') return <Users {...props} />;
   if (agent.icon === 'consultant') return <Workflow {...props} />;
   if (agent.icon === 'training') return <GraduationCap {...props} />;
@@ -242,9 +264,10 @@ function IconForAgent({agent}: {agent: Agent}) {
   return <CircleDollarSign {...props} />;
 }
 
-function Sidebar({view, setView}: {view: View; setView: (v: View) => void}) {
+function Sidebar({view, setView, session, onSignOut}: {view: View; setView: (v: View) => void; session: WorkspaceSession; onSignOut: () => void}) {
   const items: Array<[View, string, React.ReactNode]> = [
     ['dashboard', 'Workspace 首頁', <LayoutDashboard size={18} />],
+    ['sales', 'Lead & Sales', <BriefcaseBusiness size={18} />],
     ['agents', 'AI Agent 組織', <Bot size={18} />],
     ['management', '管理 / 自動化', <Settings2 size={18} />],
     ['analyze', '影片分析 / PDF 報告', <Search size={18} />],
@@ -254,11 +277,13 @@ function Sidebar({view, setView}: {view: View; setView: (v: View) => void}) {
   return <aside className="sidebar">
     <div className="brand"><div className="brandMark">M</div><div><strong>MoltiAI</strong><span>Enterprise AI Workspace</span></div></div>
     <nav>{items.map(([id, label, icon]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>{icon}<span>{label}</span></button>)}</nav>
+    <div className="workspaceIdentity"><Building2 size={17}/><div><strong>{session.workspaceName}</strong><span>{session.email}</span></div></div>
+    <button className="signOutButton" onClick={onSignOut}><LogOut size={16}/>登出工作區</button>
     <div className="sidebarNote"><ShieldCheck size={18} /><span>AI 先做研究與草稿；高風險動作保留人工核准。</span></div>
   </aside>;
 }
 
-function Dashboard({setView, runs}: {setView: (v: View) => void; runs: AgentRun[]}) {
+function Dashboard({setView, runs, session}: {setView: (v: View) => void; runs: AgentRun[]; session: WorkspaceSession}) {
   return <main className="workspacePage">
     <header className="pageHeader"><div><span className="eyebrow">MOLTIAI AI-NATIVE COMPANY</span><h1>瞬影科技 AI 組織營運台</h1><p>把業務、行銷、顧問、培訓、影音與財務拆成可審核的 AI 工作流程。</p></div><button className="primary" onClick={() => setView('agents')}><Bot size={18}/>開啟 Agent</button></header>
     <section className="metrics">
@@ -270,6 +295,7 @@ function Dashboard({setView, runs}: {setView: (v: View) => void; runs: AgentRun[
     <section className="sectionBlock"><div className="sectionTitle"><div><h2>公司部門 AI Organization</h2><p>展示給上市櫃公司看的核心架構：Human Decision + AI Workforce + Enterprise Systems。</p></div></div>
       <div className="agentGrid">{agents.map((agent) => <article className="agentCard" key={agent.id}><div className="agentIcon"><IconForAgent agent={agent}/></div><div className="agentDept">{departmentLabels[agent.department]}</div><h3>{agent.name}</h3><p>{agent.mission}</p><button onClick={() => setView('agents')}>查看與執行 <ArrowRight size={16}/></button></article>)}</div>
     </section>
+    <SalesDashboardSnapshot session={session}/>
     <section className="sectionBlock"><div className="sectionTitle"><div><h2>內容與 AI 影音</h2><p>以下功能保留為既有 Video Factory 的核心能力。</p></div></div>
       <div className="quickGrid"><button onClick={() => setView('analyze')}><Search/><strong>Analyze URL</strong><span>影片網址 → Hook / 分鏡 / CTA / PDF</span></button><button onClick={() => setView('create')}><FileVideo/><strong>腳本 / 15 秒影片</strong><span>Prompt + 3–5 張圖 → MP4</span></button><button onClick={() => setView('video-factory')}><Video/><strong>Video Factory 首頁</strong><span>從分析到生成的完整流程</span></button></div>
     </section>
@@ -296,9 +322,10 @@ function AgentsPage({runs, setRuns}: {runs: AgentRun[]; setRuns: React.Dispatch<
     const item: AgentRun = {id: crypto.randomUUID(), agentId: selected.id, agentName: selected.name, prompt, output: text, createdAt: new Date().toISOString(), mode};
     setRuns((current) => [item, ...current].slice(0, 50)); setOutput(text); setLoading(false);
   };
-  return <main className="workspacePage"><header className="pageHeader"><div><span className="eyebrow">AI WORKFORCE</span><h1>AI Agent 組織</h1><p>每個 Agent 都有自動化工作、人工核准點與可衡量 KPI。</p></div></header>
+  return <main className="workspacePage"><header className="pageHeader"><div><span className="eyebrow">AI WORKFORCE</span><h1>AI Agent 組織</h1><p>每個 Agent 都有自動化工作、人工核准點與可衡量 KPI。未接資料源時只做盤點與草稿，不編造營運數字。</p></div></header>
     <div className="agentWorkspace"><section className="agentList">{agents.map((a) => <button key={a.id} className={selected.id === a.id ? 'selected' : ''} onClick={() => choose(a)}><span className="agentIcon small"><IconForAgent agent={a}/></span><span><strong>{a.name}</strong><small>{a.title}</small></span></button>)}</section>
       <section className="agentDetail"><div className="detailHero"><div className="agentIcon"><IconForAgent agent={selected}/></div><div><span>{departmentLabels[selected.department]}</span><h2>{selected.name}</h2><p>{selected.mission}</p></div></div>
+        <div className="dataNotice"><strong>目前資料源</strong><span>{availableDataSources.join('、')}</span><small>{missingDataNotice}</small></div>
         <div className="twoCols"><div><h3>可自動化</h3><ul>{selected.automations.map((x) => <li key={x}><CheckCircle2 size={16}/>{x}</li>)}</ul></div><div><h3>必須人工核准</h3><ul>{selected.approvals.map((x) => <li key={x}><ShieldCheck size={16}/>{x}</li>)}</ul></div></div>
         <label className="taskBox"><span>交給 Agent 的任務</span><textarea value={prompt} onChange={(e) => setPrompt(e.target.value)}/><button className="primary" disabled={loading || !prompt.trim()} onClick={run}><Sparkles size={18}/>{loading ? '執行中...' : '執行 Agent'}</button></label>
         {output && <div className="outputBox"><div className="outputHeader"><h3>Agent 輸出</h3><button onClick={() => navigator.clipboard.writeText(output)}>複製</button></div><pre>{output}</pre></div>}
@@ -357,17 +384,23 @@ function VideoFactory({setView}: {setView: (v: View) => void}) {
 }
 
 function App() {
-  const [view, setView] = useState<View>('dashboard'); const [initialPrompt, setInitialPrompt] = useState('');
-  const [runs, setRuns] = useState<AgentRun[]>(() => { try { return JSON.parse(localStorage.getItem('moltiai-agent-runs') || '[]'); } catch { return []; } });
-  useEffect(() => { localStorage.setItem('moltiai-agent-runs', JSON.stringify(runs)); }, [runs]);
+  const [session, setSession] = useState<WorkspaceSession | null>(() => readWorkspaceSession());
+  const entryView: View = new URLSearchParams(window.location.search).get('intake') === '1' ? 'sales' : 'dashboard';
+  const [view, setView] = useState<View>(entryView); const [initialPrompt, setInitialPrompt] = useState('');
+  const runsKey = session ? `moltiai-agent-runs:${session.workspaceId}` : 'moltiai-agent-runs:anonymous';
+  const [runs, setRuns] = useState<AgentRun[]>(() => { try { const current = readWorkspaceSession(); return current ? JSON.parse(localStorage.getItem(`moltiai-agent-runs:${current.workspaceId}`) || '[]') : []; } catch { return []; } });
+  useEffect(() => { if (session) localStorage.setItem(runsKey, JSON.stringify(runs)); }, [runs, runsKey, session]);
+  useEffect(() => { if (session) { try { setRuns(JSON.parse(localStorage.getItem(`moltiai-agent-runs:${session.workspaceId}`) || '[]')); } catch { setRuns([]); } } }, [session?.workspaceId]);
+  if (!session) return <WorkspaceSignIn onSignedIn={(next) => {setSession(next); setView(entryView);}}/>;
   let page: React.ReactNode;
-  if (view === 'dashboard') page = <Dashboard setView={setView} runs={runs}/>;
+  if (view === 'dashboard') page = <Dashboard setView={setView} runs={runs} session={session}/>;
+  else if (view === 'sales') page = <SalesOS session={session}/>;
   else if (view === 'agents') page = <AgentsPage runs={runs} setRuns={setRuns}/>;
   else if (view === 'management') page = <ManagementPage runs={runs}/>;
   else if (view === 'analyze') page = <AnalyzeUrl onBack={() => setView('dashboard')} onGenerate={(p) => {setInitialPrompt(p); setView('create');}}/>;
   else if (view === 'create') page = <CreateVideo onBack={() => setView('dashboard')} initialPrompt={initialPrompt}/>;
   else page = <VideoFactory setView={setView}/>;
-  return <div className="appShell"><Sidebar view={view} setView={setView}/><div className="mainArea">{page}</div></div>;
+  return <div className="appShell"><Sidebar view={view} setView={setView} session={session} onSignOut={() => {clearWorkspaceSession(); setSession(null); setRuns([]);}}/><div className="mainArea">{page}</div></div>;
 }
 
 createRoot(document.getElementById('root')!).render(<App/>);
