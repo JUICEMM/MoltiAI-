@@ -29,11 +29,10 @@ import {
   Video,
   WandSparkles,
   Workflow,
-  LogOut,
 } from 'lucide-react';
 import './styles.css';
 import {SalesDashboardSnapshot, SalesOS, type WorkspaceSession} from './sales-os';
-import {clearWorkspaceSession, readWorkspaceSession, WorkspaceSignIn} from './workspace-auth';
+import {readWorkspaceSession} from './workspace-auth';
 
 type View = 'dashboard' | 'sales' | 'agents' | 'analyze' | 'create' | 'video-factory' | 'management';
 type Department = 'management' | 'sales' | 'marketing' | 'social' | 'customer' | 'consulting' | 'training' | 'content' | 'finance';
@@ -264,7 +263,7 @@ function IconForAgent({agent}: {agent: Agent}) {
   return <CircleDollarSign {...props} />;
 }
 
-function Sidebar({view, setView, session, onSignOut}: {view: View; setView: (v: View) => void; session: WorkspaceSession; onSignOut: () => void}) {
+function Sidebar({view, setView, session}: {view: View; setView: (v: View) => void; session: WorkspaceSession}) {
   const items: Array<[View, string, React.ReactNode]> = [
     ['dashboard', 'Workspace 首頁', <LayoutDashboard size={18} />],
     ['sales', 'Lead & Sales', <BriefcaseBusiness size={18} />],
@@ -278,7 +277,6 @@ function Sidebar({view, setView, session, onSignOut}: {view: View; setView: (v: 
     <div className="brand"><div className="brandMark">M</div><div><strong>MoltiAI</strong><span>Enterprise AI Workspace</span></div></div>
     <nav>{items.map(([id, label, icon]) => <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>{icon}<span>{label}</span></button>)}</nav>
     <div className="workspaceIdentity"><Building2 size={17}/><div><strong>{session.workspaceName}</strong><span>{session.email}</span></div></div>
-    <button className="signOutButton" onClick={onSignOut}><LogOut size={16}/>登出工作區</button>
     <div className="sidebarNote"><ShieldCheck size={18} /><span>AI 先做研究與草稿；高風險動作保留人工核准。</span></div>
   </aside>;
 }
@@ -384,14 +382,13 @@ function VideoFactory({setView}: {setView: (v: View) => void}) {
 }
 
 function App() {
-  const [session, setSession] = useState<WorkspaceSession | null>(() => readWorkspaceSession());
+  const [session] = useState<WorkspaceSession>(() => readWorkspaceSession()!);
   const entryView: View = new URLSearchParams(window.location.search).get('intake') === '1' ? 'sales' : 'dashboard';
   const [view, setView] = useState<View>(entryView); const [initialPrompt, setInitialPrompt] = useState('');
-  const runsKey = session ? `moltiai-agent-runs:${session.workspaceId}` : 'moltiai-agent-runs:anonymous';
-  const [runs, setRuns] = useState<AgentRun[]>(() => { try { const current = readWorkspaceSession(); return current ? JSON.parse(localStorage.getItem(`moltiai-agent-runs:${current.workspaceId}`) || '[]') : []; } catch { return []; } });
-  useEffect(() => { if (session) localStorage.setItem(runsKey, JSON.stringify(runs)); }, [runs, runsKey, session]);
-  useEffect(() => { if (session) { try { setRuns(JSON.parse(localStorage.getItem(`moltiai-agent-runs:${session.workspaceId}`) || '[]')); } catch { setRuns([]); } } }, [session?.workspaceId]);
-  if (!session) return <WorkspaceSignIn onSignedIn={(next) => {setSession(next); setView(entryView);}}/>;
+  const runsKey = `moltiai-agent-runs:${session.workspaceId}`;
+  const [runs, setRuns] = useState<AgentRun[]>(() => { try { return JSON.parse(localStorage.getItem(`moltiai-agent-runs:${readWorkspaceSession()!.workspaceId}`) || '[]'); } catch { return []; } });
+  useEffect(() => { localStorage.setItem(runsKey, JSON.stringify(runs)); }, [runs, runsKey]);
+  useEffect(() => { try { setRuns(JSON.parse(localStorage.getItem(`moltiai-agent-runs:${session.workspaceId}`) || '[]')); } catch { setRuns([]); } }, [session.workspaceId]);
   let page: React.ReactNode;
   if (view === 'dashboard') page = <Dashboard setView={setView} runs={runs} session={session}/>;
   else if (view === 'sales') page = <SalesOS session={session}/>;
@@ -400,7 +397,7 @@ function App() {
   else if (view === 'analyze') page = <AnalyzeUrl onBack={() => setView('dashboard')} onGenerate={(p) => {setInitialPrompt(p); setView('create');}}/>;
   else if (view === 'create') page = <CreateVideo onBack={() => setView('dashboard')} initialPrompt={initialPrompt}/>;
   else page = <VideoFactory setView={setView}/>;
-  return <div className="appShell"><Sidebar view={view} setView={setView} session={session} onSignOut={() => {clearWorkspaceSession(); setSession(null); setRuns([]);}}/><div className="mainArea">{page}</div></div>;
+  return <div className="appShell"><Sidebar view={view} setView={setView} session={session}/><div className="mainArea">{page}</div></div>;
 }
 
 createRoot(document.getElementById('root')!).render(<App/>);
