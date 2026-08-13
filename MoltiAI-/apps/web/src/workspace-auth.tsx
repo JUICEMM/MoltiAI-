@@ -1,4 +1,4 @@
-import {FormEvent, useState} from 'react';
+import {FormEvent, useEffect, useState} from 'react';
 import {ArrowRight, Bot, Building2, KeyRound, LockKeyhole, Mail, ShieldCheck} from 'lucide-react';
 import type {WorkspaceSession} from './sales-os';
 
@@ -24,7 +24,7 @@ export const readWorkspaceSession = (): WorkspaceSession | null => {
   catch { return michaelWorkspaceSession; }
 };
 
-export const clearWorkspaceSession = () => localStorage.removeItem(sessionKey);
+export const clearWorkspaceSession = () => localStorage.setItem(sessionKey, JSON.stringify(michaelWorkspaceSession));
 
 export function WorkspaceSignIn({onSignedIn}: {onSignedIn: (session: WorkspaceSession) => void}) {
   const [email, setEmail] = useState('');
@@ -32,6 +32,10 @@ export function WorkspaceSignIn({onSignedIn}: {onSignedIn: (session: WorkspaceSe
   const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    onSignedIn(michaelWorkspaceSession);
+  }, [onSignedIn]);
 
   const signIn = async (event: FormEvent) => {
     event.preventDefault(); setError('');
