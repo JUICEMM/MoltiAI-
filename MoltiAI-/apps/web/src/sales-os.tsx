@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {
   Activity,
   ArrowRight,
@@ -207,6 +207,13 @@ export function SalesOS({session}: {session: WorkspaceSession}) {
   const [selectedId, setSelectedId] = useState<string>(() => loadState(session).leads[0]?.id ?? '');
   const [editing, setEditing] = useState<Lead | null>(() => new URLSearchParams(window.location.search).get('intake') === '1' ? blankLead(session.workspaceId) : null);
   const [searchTerm, setSearchTerm] = useState('');
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('intake') === '1') {
+      url.searchParams.delete('intake');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
   const selected = state.leads.find((lead) => lead.id === selectedId) ?? state.leads[0];
   const saveState = (next: SalesState) => { setState(next); localStorage.setItem(storeKey(session.workspaceId), JSON.stringify(next)); };
   const audit = (action: string, detail: string): AuditEvent => ({id: crypto.randomUUID(), action, detail, createdAt: nowIso()});
