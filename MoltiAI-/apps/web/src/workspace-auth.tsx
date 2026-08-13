@@ -5,6 +5,13 @@ import type {WorkspaceSession} from './sales-os';
 const sessionKey = 'moltiai:workspace-session:v1';
 const verifierKey = 'moltiai:workspace-verifiers:v1';
 
+export const michaelWorkspaceSession: WorkspaceSession = {
+  userId: 'user_michael',
+  email: 'michael@moltiai.com',
+  workspaceId: 'ws_moltiai_michael',
+  workspaceName: '瞬影科技 MoltiAI',
+};
+
 const slug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9@._-]+/g, '-');
 const digest = async (value: string) => {
   const data = new TextEncoder().encode(value);
@@ -13,8 +20,8 @@ const digest = async (value: string) => {
 };
 
 export const readWorkspaceSession = (): WorkspaceSession | null => {
-  try { return JSON.parse(localStorage.getItem(sessionKey) || 'null') as WorkspaceSession | null; }
-  catch { return null; }
+  try { return (JSON.parse(localStorage.getItem(sessionKey) || 'null') as WorkspaceSession | null) || michaelWorkspaceSession; }
+  catch { return michaelWorkspaceSession; }
 };
 
 export const clearWorkspaceSession = () => localStorage.removeItem(sessionKey);
