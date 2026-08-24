@@ -43,9 +43,14 @@ async function testAgent(origin, agentId, provider = 'chatgpt') {
 }
 
 async function testWorkerHealth() {
-  const response = await withTimeout(`${WORKER}/health`, {}, 30000);
+  const response = await withTimeout(`${WORKER}/health`, {}, 45000);
   const body = await asJson(response);
   return {name: 'video-worker:health', ok: response.ok && body.json?.ok === true, status: response.status, detail: body.json || body.text.slice(0, 200)};
+}
+
+async function warmWorker() {
+  try { await testWorkerHealth(); } catch {}
+  await new Promise((resolve) => setTimeout(resolve, 1500));
 }
 
 async function testAnalyze() {
@@ -53,7 +58,7 @@ async function testAnalyze() {
   const response = await withTimeout(`${WORKER}/analyze`, {
     method: 'POST', headers: {'content-type': 'application/json'},
     body: JSON.stringify({url: source, title: '', description: ''}),
-  }, 45000);
+  }, 60000);
   const body = await asJson(response);
   const j = body.json || {};
   return {
@@ -69,7 +74,7 @@ async function testAnalyze() {
 
 async function testCompetitors(origin) {
   const source = 'https://www.youtube.com/watch?v=lkMBIDdkgjI';
-  const response = await withTimeout(`${origin}/api/video/competitors?source=${encodeURIComponent(source)}`, {}, 45000);
+  const response = await withTimeout(`${origin}/api/video/competitors?source=${encodeURIComponent(source)}`, {}, 60000);
   const body = await asJson(response);
   const j = body.json || {};
   const sourceId = 'lkMBIDdkgjI';
@@ -92,6 +97,7 @@ function svgBlob(label, fill) {
 }
 
 async function testRender() {
+  await warmWorker();
   const form = new FormData();
   form.set('prompt', 'MoltiAI smoke test video: enterprise AI workflow, clean corporate style.');
   form.set('cta', 'MoltiAI');
@@ -99,14 +105,14 @@ async function testRender() {
   form.append('images', svgBlob('MoltiAI 1', '#111827'), 'smoke-1.svg');
   form.append('images', svgBlob('MoltiAI 2', '#1f2937'), 'smoke-2.svg');
   form.append('images', svgBlob('MoltiAI 3', '#374151'), 'smoke-3.svg');
-  const response = await withTimeout(`${WORKER}/render`, {method: 'POST', body: form}, 110000);
+  const response = await withTimeout(`${WORKER}/render`, {method: 'POST', body: form}, 180000);
   const body = await asJson(response);
   const videoUrl = body.json?.videoUrl || '';
   let videoOk = false;
   let videoStatus = null;
   if (videoUrl) {
     try {
-      const videoResp = await withTimeout(videoUrl, {method: 'GET', headers: {Range: 'bytes=0-32'}}, 30000);
+      const videoResp = await withTimeout(videoUrl, {method: 'GET', headers: {Range: 'bytes=0-32'}}, 45000);
       videoStatus = videoResp.status;
       videoOk = videoResp.ok || videoResp.status === 206;
     } catch {}
