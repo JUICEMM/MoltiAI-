@@ -2,9 +2,11 @@
   "name": "moltiai-enterprise-workspace",
   "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "test": "node scripts/test-production.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "studio": "remotion studio",
     "render": "remotion render PromptImagesVertical out/prompt-images-vertical.mp4",
