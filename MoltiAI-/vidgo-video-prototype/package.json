@@ -10,7 +10,8 @@
     "create-video": "node scripts/create-video.mjs",
     "create-autopilot": "node scripts/create-autopilot-video.mjs",
     "generate-demo-music": "node scripts/generate-demo-music.mjs",
-    "worker": "node scripts/worker-server-v2.mjs",
+    "worker": "node scripts/worker-server.mjs",
+    "worker:v2": "node scripts/worker-server-v2.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
