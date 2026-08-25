@@ -1,4 +1,4 @@
-import {copyFile, mkdir, writeFile} from 'node:fs/promises';
+import {copyFile, mkdir, stat, writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
@@ -32,16 +32,25 @@ const clip=(s,n)=>clean(s).length>n?`${clean(s).slice(0,n-1)}…`:clean(s);
 
 const ffprobe = (file) => new Promise((resolve) => {
   const child=spawn('ffprobe',['-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',file]);
-  let out=''; child.stdout.on('data',d=>out+=d.toString()); child.on('error',()=>resolve(0)); child.on('exit',()=>resolve(Number(out.trim())||0));
+  let out='';
+  let settled=false;
+  const finish=(value)=>{if(!settled){settled=true;resolve(value);}};
+  child.stdout.on('data',d=>out+=d.toString());
+  child.on('error',()=>finish(0));
+  child.on('exit',()=>finish(Number(out.trim())||0));
 });
 
 const rankMedia = async (files) => {
   const meta=[];
-  for(const file of files){const ext=path.extname(file).toLowerCase(); const kind=videoExt.has(ext)?'video':'image'; const duration=kind==='video'?await ffprobe(file):0;
-    const sizeScore=Math.min(10, Math.max(1, Math.round((await import('node:fs/promises')).stat(file).then(s=>s.size/1_000_000).catch(()=>1))));
+  for(const file of files){
+    const ext=path.extname(file).toLowerCase();
+    const kind=videoExt.has(ext)?'video':'image';
+    const duration=kind==='video'?await ffprobe(file):0;
+    let mb=1;
+    try { mb=(await stat(file)).size/1_000_000; } catch {}
+    const sizeScore=Math.min(10,Math.max(1,Math.round(mb)));
     meta.push({file,kind,duration,sizeScore});
   }
-  // Keep user order but prefer usable videos/images; too-short videos go later.
   return meta.sort((a,b)=>((b.kind==='video'&&b.duration>=1.2)?1:0)-((a.kind==='video'&&a.duration>=1.2)?1:0) || b.sizeScore-a.sizeScore);
 };
 
