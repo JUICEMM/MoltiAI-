@@ -4,9 +4,14 @@ import {
   promptImagesVerticalDefaultProps,
   promptImagesVerticalSchema,
 } from './PromptImagesVertical';
+import {
+  PromptMediaVertical,
+  promptMediaVerticalDefaultProps,
+  promptMediaVerticalSchema,
+} from './PromptMediaVertical';
 
 export const RemotionRoot = () => {
-  return (
+  return <>
     <Composition
       id="PromptImagesVertical"
       component={PromptImagesVertical}
@@ -17,5 +22,15 @@ export const RemotionRoot = () => {
       schema={promptImagesVerticalSchema}
       defaultProps={promptImagesVerticalDefaultProps}
     />
-  );
+    <Composition
+      id="PromptMediaVertical"
+      component={PromptMediaVertical}
+      durationInFrames={450}
+      fps={30}
+      width={1080}
+      height={1920}
+      schema={promptMediaVerticalSchema}
+      defaultProps={promptMediaVerticalDefaultProps}
+    />
+  </>;
 };
