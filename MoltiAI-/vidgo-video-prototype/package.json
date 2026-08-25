@@ -1,6 +1,6 @@
 {
   "name": "vidgo-video-prototype",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "engines": {"node": "22.x"},
   "scripts": {
@@ -8,10 +8,11 @@
     "render": "remotion render PromptImagesVertical out/prompt-images-vertical.mp4",
     "still": "remotion still PromptImagesVertical --frame=45 --scale=0.25 out/frame-45.png",
     "create-video": "node scripts/create-video.mjs",
-    "create-autopilot": "node scripts/create-autopilot-video.mjs",
+    "create-autopilot": "node scripts/create-autopilot-ffmpeg.mjs",
+    "create-autopilot:remotion": "node scripts/create-autopilot-video.mjs",
     "generate-demo-music": "node scripts/generate-demo-music.mjs",
-    "worker": "node scripts/worker-server.mjs",
-    "worker:v2": "node scripts/worker-server-v2.mjs",
+    "worker": "node scripts/worker-server-v2.mjs",
+    "worker:legacy": "node scripts/worker-server.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
