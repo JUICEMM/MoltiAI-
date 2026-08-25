@@ -1,17 +1,16 @@
 {
   "name": "vidgo-video-prototype",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "engines": {
-    "node": "22.x"
-  },
+  "engines": {"node": "22.x"},
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render PromptImagesVertical out/prompt-images-vertical.mp4",
     "still": "remotion still PromptImagesVertical --frame=45 --scale=0.25 out/frame-45.png",
     "create-video": "node scripts/create-video.mjs",
+    "create-autopilot": "node scripts/create-autopilot-video.mjs",
     "generate-demo-music": "node scripts/generate-demo-music.mjs",
-    "worker": "node scripts/worker-server.mjs",
+    "worker": "node scripts/worker-server-v2.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,9 +24,5 @@
     "remotion": "4.0.482",
     "zod": "4.3.6"
   },
-  "devDependencies": {
-    "@types/react": "19.0.8",
-    "@types/react-dom": "19.0.3",
-    "typescript": "5.8.3"
-  }
+  "devDependencies": {"@types/react":"19.0.8","@types/react-dom":"19.0.3","typescript":"5.8.3"}
 }
